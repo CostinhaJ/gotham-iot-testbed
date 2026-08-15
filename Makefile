@@ -216,6 +216,20 @@ buildstatus/coap_server_compromised: Dockerfiles/iot/compromised/Dockerfile.coap
 	$(BUILD_CMD) --file $< --tag iotsim/coap-server-compromised Dockerfiles/iot/compromised
 	@touch $@
 
+### Thesis additions (tese/) -- static PQC cipher suite ###
+# Deliberately NOT part of `all`: this needs network access to pull the
+# openquantumsafe/oqs-ossl3 base image, and it is specific to the master's
+# thesis experiment (see tese/tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/tese/README.md),
+# not the original Gotham demos.
+# Build explicitly with:
+#   make pqc_static
+.PHONY: pqc_static
+pqc_static: buildstatus/pqc_static
+
+buildstatus/pqc_static: tese/tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/Dockerfiles/pqc_static/Dockerfile tese/tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/Dockerfiles/pqc_static/entrypoint.sh
+	$(BUILD_CMD) --file $< --tag iotsim/pqc-static tese/tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/Dockerfiles/pqc_static
+	@touch $@
+
 clean:
 	rm -f buildstatus/*
 	rm -f Dockerfiles/certificates/Dockerfile

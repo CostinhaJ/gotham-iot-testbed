@@ -434,23 +434,55 @@ def create_cluster_of_nodes(server: Server, project: Project, num_devices: int, 
 
 
 def start_capture(server, project, link_ids):
-    """Start packet capture (wireshark) in the selected link_ids."""
+    """Start packet capture (wireshark) in the selected link_ids.
+
+    Returns a list of {"link_id", "capturing", "capture_file_name"} dicts,
+    one per link, so callers that need the file name (e.g. to download it
+    later with download_capture_file()) don't have to re-query it.
+    Existing callers that ignore the return value are unaffected.
+    """
+    results = []
     for link in link_ids:
         req = requests.post(f"http://{server.addr}:{server.port}/v2/projects/{project.id}/links/{link}/start_capture", data={}, auth=(server.user, server.password))
         req.raise_for_status()
         result = req.json()
         print(f"Capturing {result['capturing']}, {result['capture_file_name']}")
+        results.append({"link_id": link, "capturing": result["capturing"], "capture_file_name": result["capture_file_name"]})
         time.sleep(0.3)
+    return results
 
 
 def stop_capture(server, project, link_ids):
-    """Stop packet capture in the selected link_ids."""
+    """Stop packet capture in the selected link_ids.
+
+    Returns a list of {"link_id", "capturing", "capture_file_name"} dicts,
+    same shape as start_capture() -- see its docstring.
+    """
+    results = []
     for link in link_ids:
         req = requests.post(f"http://{server.addr}:{server.port}/v2/projects/{project.id}/links/{link}/stop_capture", data={}, auth=(server.user, server.password))
         req.raise_for_status()
         result = req.json()
         print(f"Capturing {result['capturing']}, {result['capture_file_name']}")
+        results.append({"link_id": link, "capturing": result["capturing"], "capture_file_name": result["capture_file_name"]})
         time.sleep(0.3)
+    return results
+
+
+def download_capture_file(server, project, capture_file_name: str, dest_path: str) -> None:
+    """Download a stopped packet capture (.pcap/.pcapng) from the GNS3 server.
+
+    `capture_file_name` is the value returned by start_capture()/stop_capture()
+    in `result['capture_file_name']`. GNS3 stores capture files under the
+    project's file tree at 'project-files/captures/<capture_file_name>',
+    served by the generic project files endpoint.
+    """
+    url = f"http://{server.addr}:{server.port}/v2/projects/{project.id}/files/project-files/captures/{capture_file_name}"
+    req = requests.get(url, auth=(server.user, server.password), stream=True)
+    req.raise_for_status()
+    with open(dest_path, "wb") as f:
+        for chunk in req.iter_content(chunk_size=65536):
+            f.write(chunk)
 
 
 def start_all_nodes_by_name_regexp(server: Server, project: Project, node_pattern: Pattern, sleeptime: float = 0.1) -> None:
@@ -684,7 +716,11 @@ def configure_vyos_image_on_node(node_id: str, hostname: str, telnet_port: int, 
         print(out[0])
         print(out[2].decode("utf-8"))
 
-        payload = b"echo '" + config + b"' >> config.b64\n"
+        # NOTE: must overwrite (>), not append (>>) -- callers may run this
+        # function more than once against the same node (e.g. switching
+        # between network condition profiles in a sweep), and appending
+        # would concatenate base64 blobs across calls into a corrupt file.
+        payload = b"echo '" + config + b"' > config.b64\n"
         tn.write(payload)
         out = tn.expect([b"vyos@vyos:~\$"], timeout=10)
         print(out[0])

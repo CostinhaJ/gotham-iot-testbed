@@ -1,3 +1,9 @@
 requests
 docker
 graphviz
+
+# Used by tese/tese-pqc-gns3-adaptive-suite (src/capture_utils.py) to parse
+# captured TLS handshakes. Also requires the `tshark` binary (Wireshark's
+# CLI) installed on the host running the experiment -- not pip-installable,
+# see tese-pqc-gns3-adaptive-suite/tese/README.md.
+pyshark
