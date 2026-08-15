@@ -33,9 +33,9 @@ from typing import Dict, List, Optional, Tuple
 
 import pyshark
 
-# See create_templates_adaptive_tese.py's comment: gns3utils.py lives in
-# <repo_root>/src, not on sys.path by default from this directory.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "src"))
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import download_capture_file, get_links_id_from_node_connected_to_name_regexp, start_capture, stop_capture
 
@@ -101,7 +101,7 @@ def parse_trial_pcap(pcap_path: Path, keylog_bytes: Optional[bytes], keylog_dir:
     """Extract per-trial aggregate metrics from a downloaded pcap.
 
     Returns a dict matching the trial_* pcap columns in the dataset
-    schema (see ../tese/README.md): total bytes, ClientHello/ServerHello
+    schema (see README.md): total bytes, ClientHello/ServerHello
     /Certificate message sizes, TCP retransmission count, and capture
     duration.
     """

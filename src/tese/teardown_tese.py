@@ -9,7 +9,7 @@ followed by a clean, reproducible teardown instead of manual cleanup --
 in particular, resetting the router avoids leaving it mid-shaped for
 whatever runs against this project next.
 
-Run from the `src/` directory:
+Run from the `src/tese` directory:
     (venv) $ python3 teardown_tese.py
 """
 
@@ -18,17 +18,17 @@ import sys
 
 from pathlib import Path
 
-# See create_templates_adaptive_tese.py's comment: gns3utils.py lives in
-# <repo_root>/src, not on sys.path by default from this directory.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "src"))
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import *
 
-from capture_utils import get_capture_links
-from network_profiles import apply_network_profile
+from tese.capture_utils import get_capture_links
+from tese.network_profiles import apply_network_profile
 
 PROJECT_NAME = "tese_pqc_adaptive"
-STATE_FILE = Path("../tese/topology_state.json")
+STATE_FILE = Path("topology_state.json")
 
 check_local_gns3_config()
 server = Server(*read_local_gns3_config())

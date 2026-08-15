@@ -2,13 +2,21 @@
 
 This is intentionally separate from create_templates.py (which only knows
 about the Makefile's `all` target and would not see `pqc_static`, since
-that target is deliberately excluded from `all` -- see ../tese/README.md).
+that target is deliberately excluded from `all` -- see README.md).
 
 Run once, after `make pqc_static` has built the `iotsim/pqc-static` image,
 and before create_topology_tese.py. GNS3 server must be running.
 
     (venv) $ python3 create_templates_tese.py
 """
+
+import sys
+
+from pathlib import Path
+
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import Server, check_server_version, create_docker_template, get_all_templates, get_template_id_from_name, read_local_gns3_config
 

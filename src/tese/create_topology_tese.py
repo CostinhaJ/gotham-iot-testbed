@@ -6,19 +6,19 @@ Builds the network -- one VyOS router separating a "client zone" from a
 capture points) -- and the two endpoint nodes (client, server), both
 using the `iotsim-pqc-static` image: a TLS 1.3 endpoint with a FIXED
 KEM group (ML-KEM-768) and signature algorithm (ML-DSA-65) baked into
-the image at build time (see ../Dockerfiles/pqc_static/Dockerfile).
+the image at build time (see ../../Dockerfiles/pqc_static/Dockerfile).
 Client vs. server behaviour is selected per-node via the ROLE
 environment variable set below, not via separate images.
 
 This is the *static* baseline. The *adaptive* protocol-selection model
 is a separate step, layered on top of this same network topology later
--- see ../tese/README.md.
+-- see README.md.
 
-Prerequisites (see ../tese/README.md):
+Prerequisites (see README.md):
     make pqc_static                      # builds iotsim/pqc-static
     python3 create_templates_tese.py     # registers the GNS3 template
 
-Run from the `src/` directory, with the GNS3 server running:
+Run from the `src/tese` directory, with the GNS3 server running:
     (venv) $ python3 create_topology_tese.py
 """
 
@@ -29,6 +29,10 @@ import time
 
 from pathlib import Path
 
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+
 from gns3utils import *
 
 PROJECT_NAME = "tese_pqc"
@@ -36,14 +40,16 @@ AUTO_CONFIGURE_ROUTER = True
 
 # Existing project templates (created by create_templates.py / the router
 # appliance import), plus the thesis-specific endpoint template (created
-# by create_templates_tese.py). See ../tese/README.md for why these were
-# chosen.
+# by create_templates_tese.py). See README.md for why these were chosen.
 ROUTER_TEMPLATE_NAME = "VyOS 1.3.0"
 SWITCH_TEMPLATE_NAME = "Open vSwitch"
 ENDPOINT_TEMPLATE_NAME = "iotsim-pqc-static"
 
-ROUTER_CONFIG_SCRIPT = "../tese/router_pqc.sh"
-STATE_FILE = Path("../tese/topology_state.json")
+# router_pqc.sh (this suite's original router config) was retired in favour
+# of network_profiles/clean.sh, which has the same addressing and is shared
+# with the adaptive suite -- see README.md.
+ROUTER_CONFIG_SCRIPT = "../../router/network_profiles/clean.sh"
+STATE_FILE = Path("topology_state.json")
 
 CLIENT_ZONE_GATEWAY = "192.168.101.1"
 SERVER_ZONE_GATEWAY = "192.168.102.1"

@@ -6,9 +6,9 @@ placeholders) and, optionally, starts packet capture on the two
 client/server links so traffic can be inspected later (e.g. to measure
 handshake time). It does not run any benchmark or cryptography -- that
 belongs to the next step, once the PQC client/server image and the
-adaptive-selection model are implemented (see ../tese/README.md).
+adaptive-selection model are implemented (see README.md).
 
-Run from the `src/` directory, with the GNS3 server running and after
+Run from the `src/tese` directory, with the GNS3 server running and after
 create_topology_tese.py has been run at least once:
     (venv) $ python3 run_scenario_tese.py
 """
@@ -20,10 +20,14 @@ import time
 
 from pathlib import Path
 
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+
 from gns3utils import *
 
 PROJECT_NAME = "tese_pqc"
-STATE_FILE = Path("../tese/topology_state.json")
+STATE_FILE = Path("topology_state.json")
 
 # Set to True to start Wireshark-style packet capture on the
 # switch<->client and switch<->server links for this run.

@@ -7,5 +7,5 @@
 
 # thesis experiment runtime output (state files, sweep results, captures) --
 # captures/keylogs may contain TLS session secrets, never commit them.
-tese/**/topology_state.json
-tese/**/results/
+src/tese/topology_state.json
+src/tese/results/

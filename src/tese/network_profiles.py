@@ -1,10 +1,10 @@
 """Network condition profiles for the adaptive-suite sweep.
 
 Each profile is a full VyOS config script under
-../tese/network_profiles/<name>.sh (see clean.sh for why they're full
+../../router/network_profiles/<name>.sh (see clean.sh for why they're full
 configs, not deltas) plus the metadata below, logged into the dataset so
 each trial's row records the actual delay/loss/bandwidth applied, not
-just a profile name (see ../tese/README.md, dataset schema).
+just a profile name (see README.md, dataset schema).
 
 Reconfiguring the router is expensive (reboot required both before and
 after -- see apply_network_profile()), so run_experiment_tese.py's sweep
@@ -16,13 +16,13 @@ import time
 
 from pathlib import Path
 
-# See create_templates_adaptive_tese.py's comment: gns3utils.py lives in
-# <repo_root>/src, not on sys.path by default from this directory.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "src"))
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import configure_vyos_image_on_node, get_node_telnet_host_port, start_node
 
-PROFILES_DIR = Path(__file__).parent.parent / "tese" / "network_profiles"
+PROFILES_DIR = Path(__file__).resolve().parents[2] / "router" / "network_profiles"
 
 # delay_ms / loss_pct / bandwidth_kbit are the values actually written into
 # the corresponding .sh script -- keep these in sync by hand if the script

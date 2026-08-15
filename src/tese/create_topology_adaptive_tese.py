@@ -2,7 +2,7 @@
 experiment (thesis: how much does rotating PQC keys more or less often
 cost, independently of which KEM/signature algorithm is used).
 
-CORRECTED DESIGN (see ../tese/README.md for the full rationale): an
+CORRECTED DESIGN (see README.md for the full rationale): an
 earlier version of this suite made "adaptive" mean switching which
 KEM/signature algorithm the endpoints use, per trial, via container
 restart. That reintroduces exactly the overhead an adaptive scheme is
@@ -15,24 +15,24 @@ algorithm is used is now a constant for the whole experiment, not a
 sweep axis.
 
 Consequence: this suite needs NO Docker image of its own. It reuses
-`iotsim-pqc-static` / `iotsim/pqc-static` (../../tese-pqc-gns3-static-suite/
-tese-pqc-gns3-static-suite/Dockerfiles/pqc_static/) unchanged -- a fixed
-KEM group + signature algorithm, baked in at build time, is exactly what
-this experiment wants too. Still a SEPARATE GNS3 project from the static
-suite's `tese_pqc`, though: this one's router gets reconfigured with
-different traffic-shaping profiles and its endpoints get CPU/memory
-throttled between trials (see network_profiles.py / device_profiles.py)
--- keeping that isolated from the static suite's own single-shot
-handshake-cost benchmark avoids one experiment's conditions leaking into
-the other's baseline numbers. "Identical" network baseline (same
-addressing, same router config -- see ../tese/network_profiles/clean.sh,
-adapted from the static suite's router_pqc.sh) keeps results comparable.
+`iotsim-pqc-static` / `iotsim/pqc-static` (../../Dockerfiles/pqc_static/,
+shared with the static suite) unchanged -- a fixed KEM group + signature
+algorithm, baked in at build time, is exactly what this experiment wants
+too. Still a SEPARATE GNS3 project from the static suite's `tese_pqc`,
+though: this one's router gets reconfigured with different
+traffic-shaping profiles and its endpoints get CPU/memory throttled
+between trials (see network_profiles.py / device_profiles.py) -- keeping
+that isolated from the static suite's own single-shot handshake-cost
+benchmark avoids one experiment's conditions leaking into the other's
+baseline numbers. "Identical" network baseline (same addressing, same
+router config -- see ../../router/network_profiles/clean.sh, shared with
+the static suite's create_topology_tese.py) keeps results comparable.
 
-Prerequisites (see ../tese/README.md):
+Prerequisites (see README.md):
     make pqc_static                              # builds iotsim/pqc-static (in the static suite's folder)
     python3 create_templates_tese.py             # registers the GNS3 template (also in the static suite's folder)
 
-Run from the `src/` directory, with the GNS3 server running:
+Run from the `src/tese` directory, with the GNS3 server running:
     (venv) $ python3 create_topology_adaptive_tese.py
 """
 
@@ -43,9 +43,9 @@ import time
 
 from pathlib import Path
 
-# See gns3utils.py's location note in run_experiment_tese.py: it lives in
-# <repo_root>/src, not on sys.path by default from this directory.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "src"))
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import *
 
@@ -60,9 +60,9 @@ SWITCH_TEMPLATE_NAME = "Open vSwitch"
 ENDPOINT_TEMPLATE_NAME = "iotsim-pqc-static"
 
 # The "clean" network profile doubles as the router's initial baseline
-# config -- see network_profiles.py and ../tese/network_profiles/clean.sh.
-ROUTER_CONFIG_SCRIPT = "../tese/network_profiles/clean.sh"
-STATE_FILE = Path("../tese/topology_state.json")
+# config -- see network_profiles.py and ../../router/network_profiles/clean.sh.
+ROUTER_CONFIG_SCRIPT = "../../router/network_profiles/clean.sh"
+STATE_FILE = Path("topology_state.json")
 
 CLIENT_ZONE_GATEWAY = "192.168.101.1"
 SERVER_ZONE_GATEWAY = "192.168.102.1"

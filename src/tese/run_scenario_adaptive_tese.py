@@ -3,15 +3,15 @@ experiment (thesis: cost of rotating PQC keys more/less often, algorithm
 held fixed -- see create_topology_adaptive_tese.py for the full
 rationale and why this reuses the static suite's image unchanged).
 
-Mirrors ../../tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/src/run_scenario_tese.py.
+Mirrors run_scenario_tese.py (static suite, same folder).
 Only brings the network up (router, switches, endpoint placeholders); it
 does not start packet capture here (unlike the static suite's
 START_CAPTURE) because run_experiment_tese.py starts/stops a FRESH
-capture per trial itself (see ../tese/README.md) -- a single
+capture per trial itself (see README.md) -- a single
 scenario-wide capture would blend every rotation-interval/network/device
 condition into one unbounded pcap.
 
-Run from the `src/` directory, with the GNS3 server running and after
+Run from the `src/tese` directory, with the GNS3 server running and after
 create_topology_adaptive_tese.py has been run at least once:
     (venv) $ python3 run_scenario_adaptive_tese.py
 """
@@ -22,14 +22,14 @@ import time
 
 from pathlib import Path
 
-# See create_templates_adaptive_tese.py's comment: gns3utils.py lives in
-# <repo_root>/src, not on sys.path by default from this directory.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "src"))
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import *
 
 PROJECT_NAME = "tese_pqc_adaptive"
-STATE_FILE = Path("../tese/topology_state.json")
+STATE_FILE = Path("topology_state.json")
 
 check_resources()
 check_local_gns3_config()

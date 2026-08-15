@@ -2,9 +2,11 @@
 # Network profile "clean": no shaping -- the router's baseline config.
 #
 # Doubles as BOTH the router's initial configuration (see
-# ../../src/create_topology_adaptive_tese.py, ROUTER_CONFIG_SCRIPT) and a
-# selectable profile during the sweep (see ../../src/network_profiles.py)
-# to reset the router between trials that need no shaping applied.
+# ../../src/tese/create_topology_adaptive_tese.py, ROUTER_CONFIG_SCRIPT, and
+# ../../src/tese/create_topology_tese.py, which uses the same script for the
+# static suite) and a selectable profile during the sweep (see
+# ../../src/tese/network_profiles.py) to reset the router between trials
+# that need no shaping applied.
 #
 # Every profile script in this directory is a FULL config, not a delta:
 # VyOS persists configuration across reboots with `save`, so each script
@@ -12,8 +14,8 @@
 # switch would silently lose them. Keep constrained.sh / lossy.sh /
 # high_latency.sh in sync with the base block below when editing it.
 #
-# Two interfaces, one per "zone" (same addressing as the static suite's
-# router_pqc.sh, for comparability):
+# Two interfaces, one per "zone" (same addressing used by both the static
+# and adaptive suites, for comparability):
 #   eth0 -> zona cliente  (192.168.101.0/24), gateway 192.168.101.1
 #   eth1 -> zona servidor (192.168.102.0/24), gateway 192.168.102.1
 #   eth2 -> livre (reservado)
@@ -45,6 +47,7 @@ set system syslog global facility protocols level 'debug'
 # explicitly delete it so "clean" really means clean regardless of
 # history. delete on a nonexistent path is a no-op in VyOS, safe to run
 # unconditionally.
+
 delete interfaces ethernet eth1 traffic-policy
 delete traffic-policy network-emulator ADAPTIVE-NETEM
 

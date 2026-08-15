@@ -5,7 +5,7 @@ docker stats has ~1s granularity, far coarser than a single handshake
 (sub-second to low-seconds), so samples are only meaningful aggregated
 over a whole trial's observation window (warmup + however many
 rotations that interval fits in it), not attributed to individual
-handshakes -- see the dataset schema note in ../tese/README.md.
+handshakes -- see the dataset schema note in README.md.
 
 CPU% and memory are point-in-time gauges, so mean/max over the trial
 window is meaningful for them. Network I/O counters are cumulative since

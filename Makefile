@@ -7,7 +7,7 @@ CONFIG_FILE = iot-sim.config
 include $(CONFIG_FILE)
 
 
-.PHONY: all templates vyosiso clean imagerm Mirai_experimentation
+.PHONY: all templates vyosiso clean imagerm Mirai_experimentation pqc_static
 
 all: buildstatus/DNS buildstatus/certificates buildstatus/NTP \
      buildstatus/Merlin buildstatus/Mirai_builder buildstatus/Mirai_cnc buildstatus/Mirai_bot buildstatus/Mirai_scan_listener buildstatus/Mirai_loader buildstatus/Mirai_wget_loader \
@@ -22,6 +22,7 @@ all: buildstatus/DNS buildstatus/certificates buildstatus/NTP \
      buildstatus/ip_camera_street buildstatus/ip_camera_museum buildstatus/stream_server buildstatus/stream_consumer \
      buildstatus/mqtt_client_t1_compromised buildstatus/mqtt_client_t2_compromised buildstatus/coap_server_compromised \
      buildstatus/debug_client
+	 buildstatus/pqc_static
 
 templates: Dockerfiles/certificates/Dockerfile Dockerfiles/DNS/dnsmasq.conf \
            Dockerfiles/malware/Mirai/Dockerfile.cnc Dockerfiles/malware/Mirai/Dockerfile.builder
@@ -216,18 +217,8 @@ buildstatus/coap_server_compromised: Dockerfiles/iot/compromised/Dockerfile.coap
 	$(BUILD_CMD) --file $< --tag iotsim/coap-server-compromised Dockerfiles/iot/compromised
 	@touch $@
 
-### Thesis additions (tese/) -- static PQC cipher suite ###
-# Deliberately NOT part of `all`: this needs network access to pull the
-# openquantumsafe/oqs-ossl3 base image, and it is specific to the master's
-# thesis experiment (see tese/tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/tese/README.md),
-# not the original Gotham demos.
-# Build explicitly with:
-#   make pqc_static
-.PHONY: pqc_static
-pqc_static: buildstatus/pqc_static
-
-buildstatus/pqc_static: tese/tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/Dockerfiles/pqc_static/Dockerfile tese/tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/Dockerfiles/pqc_static/entrypoint.sh
-	$(BUILD_CMD) --file $< --tag iotsim/pqc-static tese/tese-pqc-gns3-static-suite/tese-pqc-gns3-static-suite/Dockerfiles/pqc_static
+buildstatus/pqc_static: Dockerfiles/pqc_static/Dockerfile Dockerfiles/pqc_static/entrypoint.sh
+	$(BUILD_CMD) --file $< --tag iotsim/pqc-static Dockerfiles/pqc_static
 	@touch $@
 
 clean:

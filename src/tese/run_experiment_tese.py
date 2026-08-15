@@ -1,9 +1,9 @@
 """Sweep the rotation-interval x network-profile x device-profile matrix,
 producing one ML-ready dataset for a future decision middleware (see
-../tese/README.md; that middleware itself is out of scope here -- this
+README.md; that middleware itself is out of scope here -- this
 only collects the data it would train/evaluate against).
 
-WHAT "ADAPTIVE" MEANS HERE (corrected design, see ../tese/README.md for
+WHAT "ADAPTIVE" MEANS HERE (corrected design, see README.md for
 the full story): NOT switching which KEM/signature algorithm the
 endpoints use -- that was an earlier iteration of this suite, and it
 turned out to reintroduce the very overhead an adaptive scheme should
@@ -58,25 +58,25 @@ import docker
 
 # gns3utils.py lives in <repo_root>/src, not on sys.path by default from
 # this directory.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import *
 
-from capture_utils import (
+from tese.capture_utils import (
     fetch_and_reset_keylog,
     get_capture_links,
     parse_trial_pcap,
     start_trial_capture,
     stop_trial_capture_and_download,
 )
-from device_profiles import DEVICE_PROFILES, apply_device_profile
-from network_profiles import NETWORK_PROFILES, apply_network_profile
-from resource_sampler import ResourceSampler
+from tese.device_profiles import DEVICE_PROFILES, apply_device_profile
+from tese.network_profiles import NETWORK_PROFILES, apply_network_profile
+from tese.resource_sampler import ResourceSampler
 
 PROJECT_NAME = "tese_pqc_adaptive"
-STATE_FILE = Path("../tese/topology_state.json")
-RESULTS_DIR = Path("../tese/results")
-CAPTURES_DIR = Path("../tese/results/captures")
+STATE_FILE = Path("topology_state.json")
+RESULTS_DIR = Path("results")
+CAPTURES_DIR = Path("results/captures")
 CLIENT_KEYLOG_PATH = "/tmp/keylog.txt"
 CA_CERT_PATH = "/certs/ca.crt"  # baked into iotsim/pqc-static, see that suite's Dockerfile
 
@@ -110,7 +110,7 @@ def parse_args():
                          help=f"candidate key-rotation intervals in seconds to sweep (default: {DEFAULT_ROTATION_INTERVALS_S})")
     parser.add_argument("--network-profiles", nargs="+", default=list(NETWORK_PROFILES), choices=list(NETWORK_PROFILES), help="subset of network profiles to sweep (default: all)")
     parser.add_argument("--device-profiles", nargs="+", default=list(DEVICE_PROFILES), choices=list(DEVICE_PROFILES), help="subset of device profiles to sweep (default: all)")
-    parser.add_argument("--output", type=Path, default=None, help="output CSV path (default: ../tese/results/adaptive_sweep_<timestamp>.csv)")
+    parser.add_argument("--output", type=Path, default=None, help="output CSV path (default: results/adaptive_sweep_<timestamp>.csv)")
     return parser.parse_args()
 
 

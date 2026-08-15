@@ -13,7 +13,7 @@ portable, sub-second timing across arbitrary /bin/sh implementations
 `time` reserved word) is not reliable enough for a thesis measurement.
 The trade-off is that each measurement also includes `docker exec`
 process-spawn overhead on top of the raw network handshake -- see the
-note printed at the end of this script and ../tese/README.md. Since the
+note printed at the end of this script and README.md. Since the
 adaptive model will be measured the same way, this overhead is at least
 applied consistently across both conditions.
 
@@ -21,7 +21,7 @@ This produces the STATIC baseline. Comparing it against the adaptive
 model's numbers (once that model is implemented and benchmarked the
 same way) is what answers the thesis' research question.
 
-Run from the `src/` directory, with the GNS3 server running and the
+Run from the `src/tese` directory, with the GNS3 server running and the
 topology already started (run_scenario_tese.py):
     (venv) $ python3 run_benchmark_tese.py [--iterations N] [--warmup N]
 """
@@ -37,12 +37,16 @@ from pathlib import Path
 
 import docker
 
+# gns3utils.py lives in <repo_root>/src, not on sys.path by default from
+# this directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+
 from gns3utils import *
 
 PROJECT_NAME = "tese_pqc"
-STATE_FILE = Path("../tese/topology_state.json")
-RESULTS_DIR = Path("../tese/results")
-CA_CERT_PATH = "/certs/ca.crt"  # baked into the image, see Dockerfiles/pqc_static
+STATE_FILE = Path("topology_state.json")
+RESULTS_DIR = Path("results")
+CA_CERT_PATH = "/certs/ca.crt"  # baked into the image, see ../../Dockerfiles/pqc_static
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("--iterations", type=int, default=50, help="number of TLS handshakes to time (default: 50)")
@@ -142,7 +146,7 @@ if ok_times:
     print(f"\n[bench] {len(ok_times)}/{args.iterations} OK, {failures} failed")
     print(f"[bench] mean={mean * 1000:.2f} ms  min={min(ok_times) * 1000:.2f} ms  max={max(ok_times) * 1000:.2f} ms")
     print("[bench] note: each measurement includes 'docker exec' process-spawn overhead on top of the "
-          "raw network handshake -- see ../tese/README.md before quoting these as pure TLS handshake times.")
+          "raw network handshake -- see README.md before quoting these as pure TLS handshake times.")
 else:
     print("\n[bench] all handshakes failed -- check that pqc-server is running (run_scenario_tese.py) "
           "and that the router/switches are up.")

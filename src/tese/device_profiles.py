@@ -3,7 +3,7 @@
 Applied directly to the live pqc-client/pqc-server containers via the
 Docker SDK's Container.update() (the same underlying mechanism as
 `docker update --cpus/--memory`, the pattern already used in
-../../../../Dockerfiles/benchmarks/stress.sh for CPU-limit sweeps --
+../../Dockerfiles/benchmarks/stress.sh for CPU-limit sweeps --
 there is no gns3utils.py wrapper for this, GNS3 only manages the
 node/container lifecycle, not its cgroup limits, so this talks to the
 `docker` Python SDK directly, same as run_benchmark_tese.py already
