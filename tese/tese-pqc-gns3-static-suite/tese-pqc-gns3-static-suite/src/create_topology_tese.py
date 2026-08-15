@@ -1,17 +1,22 @@
 """Create the network topology for the master's thesis experiment
 (static PQC vs. adaptive PQC protocol selection).
 
-This script ONLY builds the network: one VyOS router separating a
-"client zone" from a "server zone", one Open vSwitch switch per zone
-(also usable as packet capture points), and one placeholder endpoint
-node per zone (client, server).
+Builds the network -- one VyOS router separating a "client zone" from a
+"server zone", one Open vSwitch switch per zone (also usable as packet
+capture points) -- and the two endpoint nodes (client, server), both
+using the `iotsim-pqc-static` image: a TLS 1.3 endpoint with a FIXED
+KEM group (ML-KEM-768) and signature algorithm (ML-DSA-65) baked into
+the image at build time (see ../Dockerfiles/pqc_static/Dockerfile).
+Client vs. server behaviour is selected per-node via the ROLE
+environment variable set below, not via separate images.
 
-It deliberately does NOT install or configure any cryptography. The
-endpoint nodes use the generic `iotsim-debug-client` template that
-already exists in the project, as a stand-in until the PQC-capable
-client/server image (built around the thesis' adaptive-selection
-model) is ready. That is explicitly a *next* step, not this one -- see
-../tese/README.md.
+This is the *static* baseline. The *adaptive* protocol-selection model
+is a separate step, layered on top of this same network topology later
+-- see ../tese/README.md.
+
+Prerequisites (see ../tese/README.md):
+    make pqc_static                      # builds iotsim/pqc-static
+    python3 create_templates_tese.py     # registers the GNS3 template
 
 Run from the `src/` directory, with the GNS3 server running:
     (venv) $ python3 create_topology_tese.py
@@ -30,14 +35,12 @@ PROJECT_NAME = "tese_pqc"
 AUTO_CONFIGURE_ROUTER = True
 
 # Existing project templates (created by create_templates.py / the router
-# appliance import). See ../tese/README.md for why these were chosen.
+# appliance import), plus the thesis-specific endpoint template (created
+# by create_templates_tese.py). See ../tese/README.md for why these were
+# chosen.
 ROUTER_TEMPLATE_NAME = "VyOS 1.3.0"
 SWITCH_TEMPLATE_NAME = "Open vSwitch"
-# TODO(proximo passo): substituir por um template Docker proprio (com
-# liboqs/oqs-provider) assim que o modelo de selecao adaptativa estiver
-# implementado. Ate la, usa-se o cliente de debug generico do projecto
-# apenas para validar a rede.
-ENDPOINT_TEMPLATE_NAME = "iotsim-debug-client"
+ENDPOINT_TEMPLATE_NAME = "iotsim-pqc-static"
 
 ROUTER_CONFIG_SCRIPT = "../tese/router_pqc.sh"
 STATE_FILE = Path("../tese/topology_state.json")
@@ -46,6 +49,7 @@ CLIENT_ZONE_GATEWAY = "192.168.101.1"
 SERVER_ZONE_GATEWAY = "192.168.102.1"
 CLIENT_IP = ipaddress.IPv4Interface("192.168.101.10/24")
 SERVER_IP = ipaddress.IPv4Interface("192.168.102.10/24")
+SERVER_PORT = 4433
 
 check_resources()
 check_local_gns3_config()
@@ -120,7 +124,7 @@ if AUTO_CONFIGURE_ROUTER:
     configure_vyos_image_on_node(router["node_id"], hostname, port, ROUTER_CONFIG_SCRIPT, pre_exec=terminal_cmd)
     time.sleep(10)
 
-# endpoint placeholders (client / server)
+# endpoint nodes (client / server), same image, role set via environment
 client = create_node(server, project, coord_client.x, coord_client.y, endpoint_template_id, node_name="pqc-client")
 server_node = create_node(server, project, coord_server.x, coord_server.y, endpoint_template_id, node_name="pqc-server")
 
@@ -130,14 +134,24 @@ create_link(server, project, switch_server["node_id"], 1, server_node["node_id"]
 set_node_network_interfaces(server, project, client["node_id"], "eth0", CLIENT_IP, CLIENT_ZONE_GATEWAY)
 set_node_network_interfaces(server, project, server_node["node_id"], "eth0", SERVER_IP, SERVER_ZONE_GATEWAY)
 
+# Both nodes run the same iotsim-pqc-static image; ROLE picks which side
+# of the (fixed, static) TLS suite each one runs -- see
+# Dockerfiles/pqc_static/entrypoint.sh. This must happen before the nodes
+# are started (update_docker_node_environment only takes effect while the
+# node is stopped, same constraint as set_node_network_interfaces above).
+client_env = {"ROLE": "client", "SERVER_HOST": str(SERVER_IP.ip), "SERVER_PORT": str(SERVER_PORT)}
+server_env = {"ROLE": "server", "SERVER_PORT": str(SERVER_PORT)}
+update_docker_node_environment(server, project, client["node_id"], environment_dict_to_string(client_env))
+update_docker_node_environment(server, project, server_node["node_id"], environment_dict_to_string(server_env))
+
 #################
 # SAVE THE ROLE -> NODE_ID MAPPING
 #################
 # GNS3's automatic node naming is not reliable enough to identify roles
-# later (two nodes created from the same "iotsim-debug-client" template
-# would both get auto-named "iotsim-debug-client-N", and create_node()'s
-# name override is best-effort). run_scenario_tese.py reads this file
-# instead of guessing from names.
+# later (two nodes created from the same "iotsim-pqc-static" template
+# would both get auto-named "iotsim-pqc-static-N", and create_node()'s
+# name override is best-effort). run_scenario_tese.py and
+# run_benchmark_tese.py read this file instead of guessing from names.
 state = {
     "project_name": PROJECT_NAME,
     "project_id": project.id,
@@ -152,11 +166,17 @@ state = {
         "client_zone": {"cidr": "192.168.101.0/24", "gateway": CLIENT_ZONE_GATEWAY, "client_ip": str(CLIENT_IP)},
         "server_zone": {"cidr": "192.168.102.0/24", "gateway": SERVER_ZONE_GATEWAY, "server_ip": str(SERVER_IP)},
     },
+    "server_port": SERVER_PORT,
+    # informational only; the values actually baked into the image are the
+    # source of truth (run_benchmark_tese.py reads them back from the
+    # running container rather than trusting this copy).
+    "endpoint_template": ENDPOINT_TEMPLATE_NAME,
 }
 STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 with open(STATE_FILE, "w", encoding="utf-8") as f:
     json.dump(state, f, indent=2)
 
 print(f"\nTopology created. Role -> node_id mapping saved to {STATE_FILE.resolve()}")
-print("Next step (out of scope here): replace the endpoint template with your PQC-capable image, "
-      "then implement the benchmark scenario in run_scenario_tese.py.")
+print("Endpoints run the static PQC suite baked into iotsim-pqc-static (ML-KEM-768 / ML-DSA-65 by default).")
+print("Next: run_scenario_tese.py to bring the network up, then run_benchmark_tese.py to measure "
+      "the static baseline. The adaptive model is a separate, later step.")
