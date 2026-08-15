@@ -24,8 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import *
 
-from tese.capture_utils import get_capture_links
-from tese.network_profiles import apply_network_profile
+from tese.utils.capture_utils import get_capture_links
+from tese.utils.network_profiles import apply_network_profile
 
 PROJECT_NAME = "tese_pqc_adaptive"
 STATE_FILE = Path("topology_state.json")

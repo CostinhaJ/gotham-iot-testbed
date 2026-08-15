@@ -62,16 +62,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import *
 
-from tese.capture_utils import (
+from tese.utils.capture_utils import (
     fetch_and_reset_keylog,
     get_capture_links,
     parse_trial_pcap,
     start_trial_capture,
     stop_trial_capture_and_download,
 )
-from tese.device_profiles import DEVICE_PROFILES, apply_device_profile
-from tese.network_profiles import NETWORK_PROFILES, apply_network_profile
-from tese.resource_sampler import ResourceSampler
+from tese.utils.device_profiles import DEVICE_PROFILES, apply_device_profile
+from tese.utils.network_profiles import NETWORK_PROFILES, apply_network_profile
+from tese.utils.resource_sampler import ResourceSampler
 
 PROJECT_NAME = "tese_pqc_adaptive"
 STATE_FILE = Path("topology_state.json")
