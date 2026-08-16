@@ -18,11 +18,11 @@ from pathlib import Path
 
 # gns3utils.py lives in <repo_root>/src, not on sys.path by default from
 # this directory.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 from gns3utils import configure_vyos_image_on_node, get_node_telnet_host_port, start_node
 
-PROFILES_DIR = Path(__file__).resolve().parents[2] / "router" / "network_profiles"
+PROFILES_DIR = Path(__file__).resolve().parents[3] / "router" / "network_profiles"
 
 # delay_ms / loss_pct / bandwidth_kbit are the values actually written into
 # the corresponding .sh script -- keep these in sync by hand if the script

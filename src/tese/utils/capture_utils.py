@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pyshark
+import requests
 
 # gns3utils.py lives in <repo_root>/src, not on sys.path by default from
 # this directory.
@@ -41,32 +42,65 @@ from gns3utils import download_capture_file, get_links_id_from_node_connected_to
 
 
 def get_capture_links(server, project, state: Dict) -> Tuple[List[str], List[str]]:
-    """Resolve the (client-side, server-side) link IDs once per run.
+    """Resolve the (edge-side, server-side) link IDs once per run.
 
-    Mirrors the link lookup in run_scenario_tese.py's START_CAPTURE block.
+    Updated for the point-to-point End Node / Edge Node / Router / Server
+    topology (create_topology_edge_tese.py) -- there are no more switches
+    to look links up through. Instead this filters each endpoint's links
+    directly for the one connected to the Router: the Edge Node has TWO
+    links (one to the End Node, one to the Router) and only the
+    Router-facing one carries the PQC/TLS traffic this dataset cares
+    about, so "any link off the Edge Node" would be wrong -- it would also
+    (pointlessly) try to capture the sensor-facing link. The Server still
+    has only one link, but filtering by the Router's name keeps this
+    symmetric and correct if that ever changes.
     """
     nodes = state["nodes"]
-    client_links = get_links_id_from_node_connected_to_name_regexp(
-        server, project, nodes["switch_client"]["node_id"], re.compile(re.escape(nodes["client"]["name"])))
+    router_name_re = re.compile(re.escape(nodes["router"]["name"]))
+    edge_links = get_links_id_from_node_connected_to_name_regexp(
+        server, project, nodes["edge_node"]["node_id"], router_name_re)
     server_links = get_links_id_from_node_connected_to_name_regexp(
-        server, project, nodes["switch_server"]["node_id"], re.compile(re.escape(nodes["server"]["name"])))
-    return [lk.id for lk in client_links], [lk.id for lk in server_links]
+        server, project, nodes["server"]["node_id"], router_name_re)
+    return [lk.id for lk in edge_links], [lk.id for lk in server_links]
 
 
 def start_trial_capture(server, project, client_link_ids: List[str], server_link_ids: List[str]) -> None:
+    """Start a fresh capture on both links for one trial.
+
+    Defensively stops any capture already running on these links FIRST.
+    GNS3 returns 409 Conflict from start_capture() on a link that's
+    already capturing -- which happens whenever a previous run was
+    interrupted (Ctrl+C, crash) mid-trial, since that run's
+    stop_trial_capture_and_download() never got a chance to run and the
+    GNS3-side capture is left running. Stopping first also means that
+    abandoned run's traffic can never leak into this trial's pcap -- it's
+    not just an error-avoidance fix, it's what keeps "one trial = one
+    fresh capture" (see module docstring) true across interrupted runs.
+    """
+    for link_ids in (client_link_ids, server_link_ids):
+        try:
+            stop_capture(server, project, link_ids)
+        except requests.exceptions.HTTPError:
+            pass  # nothing was capturing on these links -- the common, expected case
     start_capture(server, project, client_link_ids)
     start_capture(server, project, server_link_ids)
 
 
 def stop_trial_capture_and_download(server, project, client_link_ids: List[str], server_link_ids: List[str],
                                      dest_dir: Path, trial_id: str) -> Path:
-    """Stop capture on both links, download only the client-side pcap.
+    """Stop capture on both links, download only the "client-side" (really:
+    Edge Node <-> Router) pcap.
 
-    The client-side (IoT-device-facing) link is the one this dataset's
-    packet metrics are computed from -- see module docstring on scope.
-    The server-side capture is still stopped (freeing GNS3's capture
-    resources) and downloaded for completeness/manual inspection, but is
-    not parsed by parse_trial_pcap() below.
+    That's the link this dataset's packet metrics are computed from -- see
+    module docstring on scope, and get_capture_links() above for why it's
+    specifically the Router-facing Edge Node link, not the End Node one.
+    Parameter names kept as client_link_ids/server_link_ids for continuity
+    with run_full_experiment_tese.py, which still passes the same two
+    link-id lists it always did -- they're just resolved differently now
+    (see get_capture_links()). The server-side capture is still stopped
+    (freeing GNS3's capture resources) and downloaded for
+    completeness/manual inspection, but is not parsed by
+    parse_trial_pcap() below.
     """
     dest_dir.mkdir(parents=True, exist_ok=True)
     client_results = stop_capture(server, project, client_link_ids)

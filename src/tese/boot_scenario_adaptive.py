@@ -1,19 +1,18 @@
-"""Start the network topology for the key-rotation-frequency PQC
-experiment (thesis: cost of rotating PQC keys more/less often, algorithm
-held fixed -- see create_topology_adaptive_tese.py for the full
-rationale and why this reuses the static suite's image unchanged).
+"""Start the End Node / Edge Node / Router / Server topology created by
+create_topology_edge_tese.py.
 
-Mirrors run_scenario_tese.py (static suite, same folder).
-Only brings the network up (router, switches, endpoint placeholders); it
-does not start packet capture here (unlike the static suite's
-START_CAPTURE) because run_experiment_tese.py starts/stops a FRESH
-capture per trial itself (see README.md) -- a single
-scenario-wide capture would blend every rotation-interval/network/device
-condition into one unbounded pcap.
+Mirrors boot_scenario_adaptive.py (same suite, same idea: bring the router
+up first since it needs real boot time, then the endpoints), just with the
+switch-boot step removed (no switches in this architecture) and the new
+node set (end_node, edge_node, server instead of client/server + 2 switches).
+
+Does not start packet capture here, same reasoning as boot_scenario_adaptive.py:
+a future experiment runner should start/stop capture per trial, not once for
+the whole scenario.
 
 Run from the `src/tese` directory, with the GNS3 server running and after
-create_topology_adaptive_tese.py has been run at least once:
-    (venv) $ python3 run_scenario_adaptive_tese.py
+create_topology_edge_tese.py has been run at least once:
+    (venv) $ python3 boot_scenario_edge.py
 """
 
 import json
@@ -28,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from gns3utils import *
 
-PROJECT_NAME = "tese_pqc_adaptive"
+PROJECT_NAME = "tese_pqc_edge"
 STATE_FILE = Path("topology_state.json")
 
 check_resources()
@@ -52,7 +51,7 @@ if len(get_all_nodes(server, project)) == 0:
     sys.exit(1)
 
 if not STATE_FILE.exists():
-    print(f"State file {STATE_FILE} not found. Run create_topology_adaptive_tese.py first.")
+    print(f"State file {STATE_FILE} not found. Run create_topology_edge_tese.py first.")
     sys.exit(1)
 
 with open(STATE_FILE, "r", encoding="utf-8") as f:
@@ -60,6 +59,9 @@ with open(STATE_FILE, "r", encoding="utf-8") as f:
 
 nodes = state["nodes"]
 
+# Now actually meaningful with the check_ipaddrs() fix in gns3utils.py --
+# it used to only check the FIRST address in a node's /etc/network/interfaces,
+# which would have silently skipped one of the Edge Node's two addresses.
 check_ipaddrs(server, project)
 
 # 1. router first, it needs time to boot
@@ -67,17 +69,19 @@ print(f"Starting {nodes['router']['name']}")
 start_node(server, project, nodes["router"]["node_id"])
 time.sleep(60)
 
-# 2. switches
-for role in ("switch_client", "switch_server"):
+# 2. endpoints -- no switches to start in between anymore
+for role in ("end_node", "edge_node", "server"):
     print(f"Starting {nodes[role]['name']}")
     start_node(server, project, nodes[role]["node_id"])
     time.sleep(1)
 
-# 3. endpoints (client / server placeholders)
-for role in ("client", "server"):
-    print(f"Starting {nodes[role]['name']}")
-    start_node(server, project, nodes[role]["node_id"])
-    time.sleep(1)
-
-print("\nNetwork is up: pqc-client (192.168.101.10) <-> pqc-router <-> pqc-server (192.168.102.10)")
-print("Next: run_experiment_tese.py to sweep the rotation-interval x network x device matrix.")
+print("\nNetwork is up: end-node (192.168.100.10) <-> edge-node (192.168.100.1 / 192.168.101.10) "
+      "<-> pqc-router <-> pqc-server (192.168.102.10)")
+print("Next: validate connectivity before running any experiment script -- from inside each container:")
+print("  end-node:  ping -c3 192.168.100.1     (its Edge Node neighbour)")
+print("  edge-node: ping -c3 192.168.100.10 (End Node) and ping -c3 192.168.101.1 (Router)")
+print("  server:    ping -c3 192.168.102.1     (Router)")
+print("  edge-node -> server, through the router: ping -c3 192.168.102.10")
+print("Once that's all clean, run_minimal_experiment.py needs updating for the new node names")
+print("(end_node/edge_node/server) before it'll work against this topology -- it still assumes the")
+print("old client/server + switch layout.")

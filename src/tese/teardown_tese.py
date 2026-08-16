@@ -1,6 +1,7 @@
-"""Tear down the adaptive-suite scenario: stop any lingering capture,
+"""Tear down the edge-architecture scenario: stop any lingering capture,
 reset the router to the unshaped 'clean' network profile, and stop all
-5 nodes in reverse start order.
+4 nodes (End Node, Edge Node, Server, Router -- no switches anymore, see
+create_topology_edge_tese.py) in reverse start order.
 
 The static suite's run_scenario_tese.py has the equivalent of this as a
 commented-out, non-callable block at the bottom of the file. Here it's a
@@ -27,7 +28,7 @@ from gns3utils import *
 from tese.utils.capture_utils import get_capture_links
 from tese.utils.network_profiles import apply_network_profile
 
-PROJECT_NAME = "tese_pqc_adaptive"
+PROJECT_NAME = "tese_pqc_edge"
 STATE_FILE = Path("topology_state.json")
 
 check_local_gns3_config()
@@ -49,14 +50,15 @@ with open(STATE_FILE, "r", encoding="utf-8") as f:
 nodes = state["nodes"]
 
 print("Stopping any in-progress capture...")
-client_link_ids, server_link_ids = get_capture_links(server, project, state)
-stop_capture(server, project, client_link_ids)
+edge_link_ids, server_link_ids = get_capture_links(server, project, state)
+stop_capture(server, project, edge_link_ids)
 stop_capture(server, project, server_link_ids)
 
 print("Resetting router to the 'clean' (unshaped) network profile...")
 apply_network_profile(server, project, nodes["router"]["node_id"], "clean")
 
-for role in ("client", "server", "switch_client", "switch_server", "router"):
+# No more switch_client/switch_server -- see create_topology_edge_tese.py.
+for role in ("end_node", "edge_node", "server", "router"):
     print(f"Stopping {nodes[role]['name']}")
     stop_node(server, project, nodes[role]["node_id"])
 
