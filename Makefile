@@ -7,7 +7,7 @@ CONFIG_FILE = iot-sim.config
 include $(CONFIG_FILE)
 
 
-.PHONY: all templates vyosiso clean imagerm Mirai_experimentation
+.PHONY: all templates vyosiso clean imagerm
 
 all: buildstatus/DNS buildstatus/certificates buildstatus/NTP \
      buildstatus/mqtt_broker_1.6 buildstatus/mqtt_broker_1.6_auth buildstatus/mqtt_broker_tls \
@@ -33,9 +33,7 @@ Dockerfiles/certificates/Dockerfile: Dockerfiles/certificates/Dockerfile.templat
 	sed 's/!PLACEHOLDER-MQTT_TLS_BROKER_CN!/$(MQTT_TLS_BROKER_CN)/g' $< > $@
 
 Dockerfiles/DNS/dnsmasq.conf: Dockerfiles/DNS/dnsmasq.conf.template $(CONFIG_FILE)
-	sed -e 's/!PLACEHOLDER-LOCAL_DOMAIN!/$(LOCAL_DOMAIN)/g' \
-            -e 's/!PLACEHOLDER-MIRAI_CNC_IPADDR!/$(MIRAI_CNC_IPADDR)/g' \
-            -e 's/!PLACEHOLDER-MIRAI_REPORT_IPADDR!/$(MIRAI_REPORT_IPADDR)/g' $< > $@
+	sed -e 's/!PLACEHOLDER-LOCAL_DOMAIN!/$(LOCAL_DOMAIN)/g' $< > $@
 
 buildstatus/DNS: Dockerfiles/DNS/Dockerfile Dockerfiles/DNS/dnsmasq.conf
 	$(BUILD_CMD) --file $< --tag iotsim/dns Dockerfiles/DNS
@@ -79,10 +77,6 @@ buildstatus/cooler_motor: Dockerfiles/iot/cooler_motor/Dockerfile Dockerfiles/io
 
 buildstatus/predictive_maintenance: Dockerfiles/iot/predictive_maintenance/Dockerfile Dockerfiles/iot/predictive_maintenance/client.py Dockerfiles/iot/predictive_maintenance/ai4i2020/ai4i2020.csv.xz buildstatus/certificates
 	$(BUILD_CMD) --file $< --tag iotsim/predictive-maintenance Dockerfiles/iot/predictive_maintenance
-	@touch $@
-
-buildstatus/hydraulic_system: Dockerfiles/iot/hydraulic_system/Dockerfile Dockerfiles/iot/hydraulic_system/client.py Dockerfiles/iot/hydraulic_system/condition_monitoring_hydraulic/*.txt.xz buildstatus/certificates
-	$(BUILD_CMD) --file $< --tag iotsim/hydraulic-system Dockerfiles/iot/hydraulic_system
 	@touch $@
 
 buildstatus/building_monitor: Dockerfiles/iot/building_monitor/Dockerfile Dockerfiles/iot/building_monitor/client.py Dockerfiles/iot/building_monitor/appliances_energy/energydata_complete.csv.xz buildstatus/certificates

@@ -10,6 +10,7 @@ import re
 import resource
 import time
 import warnings
+import hashlib
 
 from collections import namedtuple
 from telnetlib import Telnet
@@ -666,10 +667,11 @@ def configure_vyos_image_on_node(node_id: str, hostname: str, telnet_port: int, 
         import shlex
         pre_proc = subprocess.Popen(shlex.split(pre_exec))
 
-    local_checksum = md5sum_file(path_script)
-
     with open(path_script, "rb") as f:
-        config = base64.b64encode(f.read())
+        raw = f.read().replace(b"\r\n", b"\n")  # normaliza CRLF -> LF
+
+    local_checksum = hashlib.md5(raw).hexdigest()
+    config = base64.b64encode(raw)
 
     with Telnet(hostname, telnet_port) as tn:
         out = tn.read_until(b"vyos login:")
@@ -684,7 +686,7 @@ def configure_vyos_image_on_node(node_id: str, hostname: str, telnet_port: int, 
         print(out[0])
         print(out[2].decode("utf-8"))
 
-        payload = b"echo '" + config + b"' >> config.b64\n"
+        payload = b"echo '" + config + b"' > config.b64\n"
         tn.write(payload)
         out = tn.expect([b"vyos@vyos:~\$"], timeout=10)
         print(out[0])
