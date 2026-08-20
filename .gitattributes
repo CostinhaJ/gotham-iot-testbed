@@ -1,0 +1,29 @@
+# Força terminadores de linha LF (Unix) para todos os ficheiros de texto,
+# independentemente do sistema operativo onde foram editados/gravados.
+#
+# Motivo: shebangs como '#!/usr/bin/env python3' partem-se com CRLF
+# (Windows), porque o interpretador procura literalmente por um binário
+# chamado 'python3\r', que não existe. Isto faz os containers Docker
+# morrerem instantaneamente no arranque (exit code 127), impedindo
+# qualquer dispositivo IoT de gerar tráfego.
+
+* text=auto eol=lf
+
+*.py     text eol=lf
+*.sh     text eol=lf
+*.bash   text eol=lf
+*.env    text eol=lf
+*.cfg    text eol=lf
+*.conf   text eol=lf
+*.ini    text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+Dockerfile   text eol=lf
+Dockerfile.* text eol=lf
+
+# Binários nunca devem ser tocados na conversão de terminadores de linha
+*.png binary
+*.jpg binary
+*.pcap binary
+*.pcapng binary
+*.db binary

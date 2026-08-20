@@ -13,7 +13,7 @@ all: buildstatus/DNS buildstatus/certificates buildstatus/NTP \
      buildstatus/mqtt_broker_1.6 buildstatus/mqtt_broker_1.6_auth buildstatus/mqtt_broker_tls \
      buildstatus/mqtt_client_t1 buildstatus/mqtt_client_t2 \
      buildstatus/air_quality buildstatus/cooler_motor buildstatus/predictive_maintenance \
-     buildstatus/hydraulic_system buildstatus/building_monitor buildstatus/domotic_monitor \
+     buildstatus/building_monitor buildstatus/domotic_monitor \
      buildstatus/coap_server buildstatus/coap_cloud buildstatus/city_power buildstatus/city_power_tls \
      buildstatus/combined_cycle buildstatus/combined_cycle_tls \
      buildstatus/city_power_cloud buildstatus/combined_cycle_cloud \
