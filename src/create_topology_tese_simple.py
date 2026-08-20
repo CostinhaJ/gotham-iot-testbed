@@ -454,9 +454,7 @@ for i, d in enumerate(museum_clus_ipconsum[1]):
     env["STREAM_SERVER_ADDR"] = MUSEUM_STREAMSERVER_NAME[0]
     env["STREAM_NAME"] = museum_clus_ipcam[1][i]["name"]
     update_docker_node_environment(server, project, d["node_id"], environment_dict_to_string(env))
-
-
-
+    
 
 EXTRA_HOSTS = {NTP_CLOUD_NAME[0]: NTP_CLOUD_NAME[1],
                NEIGH_BROKER_PLAIN_NAME[0]: NEIGH_BROKER_PLAIN_NAME[1],

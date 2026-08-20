@@ -38,9 +38,16 @@ docker_client.ping()
 #######
 # Run #
 #######
-
+ 
 start_all_routers(server, project, sleeptime=30)
 start_all_switches(server, project)
+
+start_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-ip-camera-museum-*", re.IGNORECASE))
+start_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-ip-camera-street-*", re.IGNORECASE))
+start_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-stream-consumer-*", re.IGNORECASE))
+start_capture_all_iot_links(server, project, re.compile("openvswitch-1", re.IGNORECASE), re.compile("iotsim.*", re.IGNORECASE))
+start_capture_all_iot_links(server, project, re.compile("openvswitch-2", re.IGNORECASE), re.compile("iotsim.*", re.IGNORECASE))
+
 
 # Start packet capturing in certain links
 all_iot = get_nodes_id_by_name_regexp(server, project, re.compile("iotsim-.*", re.IGNORECASE))
@@ -68,15 +75,15 @@ for n in sorted(iot_rest, key=lambda x: x.name):
     time.sleep(0.1)
 
 
-start_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-ip-camera-museum-*", re.IGNORECASE))
-start_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-ip-camera-street-*", re.IGNORECASE))
-start_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-stream-consumer-*", re.IGNORECASE))
-
-
-
 ##############################################################
 # Stop the scenario: stop packet capturing and all the nodes #
 ##############################################################
+
+# stop_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-ip-camera-museum-*", re.IGNORECASE))
+# stop_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-ip-camera-street-*", re.IGNORECASE))
+# stop_capture_all_iot_links(server, project, re.compile("openvswitch.*", re.IGNORECASE), re.compile("iotsim-stream-consumer-*", re.IGNORECASE))
+# stop_capture_all_iot_links(server, project, re.compile("openvswitch-1", re.IGNORECASE), re.compile("iotsim.*", re.IGNORECASE))
+# stop_capture_all_iot_links(server, project, re.compile("openvswitch-2", re.IGNORECASE), re.compile("iotsim.*", re.IGNORECASE))
 
 
 # for n in sorted(iot_rest, key=lambda x: x.name):
