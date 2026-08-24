@@ -1,0 +1,12 @@
+# RYU e o eventlet sao sensiveis a versao -- combinacoes recentes de
+# eventlet/dnspython/setuptools costumam partir o ryu-manager. Estas
+# versoes sao as que tipicamente funcionam com Python 3.8/3.9.
+ryu==4.34
+eventlet==0.30.2
+dnspython==1.16.0
+
+# Machine learning
+scikit-learn>=1.0
+joblib>=1.0
+numpy>=1.21
+pandas>=1.3

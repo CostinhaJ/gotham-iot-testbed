@@ -2,3 +2,5 @@ requests
 docker
 graphviz
 docker
+ryu==4.34
+eventlet==0.30.2

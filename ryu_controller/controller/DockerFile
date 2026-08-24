@@ -1,0 +1,5 @@
+FROM python:3.9-slim
+WORKDIR /app
+COPY ryu-sdn-ids/ /app/
+RUN pip install -r requirements.txt
+CMD ["ryu-manager", "--ofp-listen-host", "0.0.0.0", "--ofp-tcp-listen-port", "6633", "controller/ai_ids_controller.py"]

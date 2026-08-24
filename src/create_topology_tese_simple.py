@@ -169,7 +169,7 @@ routers_west_zone = []
 switches_west_zone = []
 coords_west_zone = []
 switch_freeport = 1
-for i in [-40, -20, 0, 20]:
+for i in [-10, 10]:
     coord = Position(coord_swest.x + project.grid_unit * i, coord_swest.y + project.grid_unit * 3)
     rzone = create_node(server, project, coord.x, coord.y, router_template_id)
     create_link(server, project, rzone["node_id"], 1, swest["node_id"], switch_freeport)
@@ -182,7 +182,7 @@ for i in [-40, -20, 0, 20]:
     coords_west_zone.append(coord)
 
 # router installation and configuration
-rwest_configs = [f"../router/locations/router_loc{i}.sh" for i in range(1, 5)]
+rwest_configs = [f"../router/locations/router_loc{i}.sh" for i in range(1, 3)]
 if AUTO_CONFIGURE_ROUTERS:
     for router_node, router_config in zip(routers_west_zone, rwest_configs):
         print(f"Installing {router_node['name']}")
