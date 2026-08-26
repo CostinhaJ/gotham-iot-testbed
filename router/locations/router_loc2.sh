@@ -18,7 +18,6 @@ set system ntp server 1.pool.ntp.org
 set system ntp server 2.pool.ntp.org
 set system syslog global facility all level 'info'
 set system syslog global facility protocols level 'debug'
-
 commit
 save
 

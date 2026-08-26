@@ -109,11 +109,13 @@ def get_project_by_name(server: Server, name: str) -> Optional[Dict[str, Any]]:
     return Project(name=filtered_project["name"], id=filtered_project["project_id"], grid_unit=int(filtered_project["grid_size"]))
 
 
-def create_docker_template(server: Server, name: str, image: str, environment: str = '') -> Optional[Dict[str, Any]]:
+def create_docker_template(server: Server, name: str, image: str, environment: str = '', adapters: int = 1) -> Optional[Dict[str, Any]]:
     """Create a new GNS3 docker template.
 
     'environment' should be the empty string '' or a string with newline separated key=value pairs,
     e.g. environment = 'VAR_ONE=value1\nVAR2=2\nBLABLABLA=something'
+
+    'adapters' is the number of network adapters the template gets (default 1, same as before).
     """
     defaults = {'adapters': 1,
                 'builtin': False,
@@ -136,6 +138,7 @@ def create_docker_template(server: Server, name: str, image: str, environment: s
     defaults["name"] = name
     defaults["image"] = image
     defaults["environment"] = environment
+    defaults["adapters"] = adapters
 
     req = requests.post(f"http://{server.addr}:{server.port}/v2/templates", data=json.dumps(defaults), auth=(server.user, server.password))
     req.raise_for_status()

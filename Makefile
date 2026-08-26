@@ -18,7 +18,7 @@ all: buildstatus/DNS buildstatus/certificates buildstatus/NTP \
      buildstatus/combined_cycle buildstatus/combined_cycle_tls \
      buildstatus/city_power_cloud buildstatus/combined_cycle_cloud \
      buildstatus/ip_camera_street buildstatus/ip_camera_museum buildstatus/stream_server buildstatus/stream_consumer \
-     buildstatus/debug_client
+     buildstatus/debug_client buildstatus/cerebro
 
 templates: Dockerfiles/certificates/Dockerfile Dockerfiles/DNS/dnsmasq.conf
            
@@ -139,6 +139,10 @@ buildstatus/debug_client: Dockerfiles/iot/debug_client/Dockerfile
 	$(BUILD_CMD) --file $< --tag iotsim/debug-client Dockerfiles/iot/debug_client
 	@touch $@
 
+buildstatus/cerebro: Dockerfiles/cerebro/Dockerfile Dockerfiles/cerebro/prometheus.yml Dockerfiles/cerebro/telegraf.conf Dockerfiles/cerebro/supervisord.conf Dockerfiles/cerebro/grafana-provisioning/datasources/datasource.yml Dockerfiles/cerebro/grafana-provisioning/dashboards/dashboard.yml Dockerfiles/cerebro/grafana-provisioning/dashboards/json/iot-overview.json
+	$(BUILD_CMD) --file $< --tag iotsim/cerebro Dockerfiles/cerebro
+	@touch $@
+
 clean:
 	rm -f buildstatus/*
 	rm -f Dockerfiles/certificates/Dockerfile
@@ -146,4 +150,3 @@ clean:
 
 imagerm: clean
 	docker image ls | grep "^iotsim/" | awk '{print $$3}' | xargs docker image rm -f
-
