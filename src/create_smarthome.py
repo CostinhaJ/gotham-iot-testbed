@@ -51,10 +51,6 @@ mqtt_broker_1_6_auth_template_id = get_template_id_from_name(templates, "iotsim-
 assert mqtt_broker_1_6_auth_template_id
 mqtt_broker_tls_template_id = get_template_id_from_name(templates, "iotsim-mqtt-broker-tls")
 assert mqtt_broker_tls_template_id
-mqtt_client_t1_template_id = get_template_id_from_name(templates, "iotsim-mqtt-client-t1")
-assert mqtt_client_t1_template_id
-mqtt_client_t2_template_id = get_template_id_from_name(templates, "iotsim-mqtt-client-t2")
-assert mqtt_client_t2_template_id
 building_monitor_template_id = get_template_id_from_name(templates, "iotsim-building-monitor")
 assert building_monitor_template_id
 ip_camera_street_template_id = get_template_id_from_name(templates, "iotsim-ip-camera-street")
@@ -145,17 +141,18 @@ routers_west_zone = []
 switches_west_zone = []
 coords_west_zone = []
 switch_freeport = 1
-for i in [-10, 10]:
-    coord = Position(coord_swest.x + project.grid_unit * i, coord_swest.y + project.grid_unit * 3)
-    rzone = create_node(server, project, coord.x, coord.y, router_template_id)
-    create_link(server, project, rzone["node_id"], 1, swest["node_id"], switch_freeport)
-    switch_freeport += 1
-    coord = Position(coord.x, coord.y + project.grid_unit * 2)
-    szone = create_node(server, project, coord.x, coord.y, switch_template_id)
-    create_link(server, project, rzone["node_id"], 0, szone["node_id"], 0)
-    routers_west_zone.append(rzone)
-    switches_west_zone.append(szone)
-    coords_west_zone.append(coord)
+
+#for i in [-10, 10]:
+coord = Position(coord_swest.x + project.grid_unit * 1, coord_swest.y + project.grid_unit * 3) # i em vez de 1
+rzone = create_node(server, project, coord.x, coord.y, router_template_id)
+create_link(server, project, rzone["node_id"], 1, swest["node_id"], switch_freeport)
+switch_freeport += 1
+coord = Position(coord.x, coord.y + project.grid_unit * 2)
+szone = create_node(server, project, coord.x, coord.y, switch_template_id)
+create_link(server, project, rzone["node_id"], 0, szone["node_id"], 0)
+routers_west_zone.append(rzone)
+switches_west_zone.append(szone)
+coords_west_zone.append(coord)
 
 # router installation and configuration
 rwest_configs = [f"../router/locations/router_loc{i}.sh" for i in range(1, 3)]
@@ -205,11 +202,11 @@ set_node_network_interfaces(server, project, ntp["node_id"], "eth0", ipaddress.I
 # Secure MQTT broker #
 ######################
 
-MQTT_CLOUD_TLS_NAME = (sim_config["MQTT_TLS_BROKER_CN"], "192.168.0.4")
-
-mqtt_cloud_tls = create_node(server, project, coord_cloud_snorth.x + project.grid_unit * 3, coord_cloud_snorth.y - project.grid_unit * 2, mqtt_broker_tls_template_id)
-create_link(server, project, cloud_snorth["node_id"], 3, mqtt_cloud_tls["node_id"], 0)
-set_node_network_interfaces(server, project, mqtt_cloud_tls["node_id"], "eth0", ipaddress.IPv4Interface(f"{MQTT_CLOUD_TLS_NAME[1]}/20"), "192.168.0.1", lab_nameserver)
+#MQTT_CLOUD_TLS_NAME = (sim_config["MQTT_TLS_BROKER_CN"], "192.168.0.4")
+#
+#mqtt_cloud_tls = create_node(server, project, coord_cloud_snorth.x + project.grid_unit * 3, coord_cloud_snorth.y - project.grid_unit * 2, mqtt_broker_tls_template_id)
+#create_link(server, project, cloud_snorth["node_id"], 3, mqtt_cloud_tls["node_id"], 0)
+#set_node_network_interfaces(server, project, mqtt_cloud_tls["node_id"], "eth0", ipaddress.IPv4Interface(f"{MQTT_CLOUD_TLS_NAME[1]}/20"), "192.168.0.1", lab_nameserver)
 
 
 
@@ -221,65 +218,51 @@ set_node_network_interfaces(server, project, mqtt_cloud_tls["node_id"], "eth0", 
 ################
 
 #Nomes e IPs dos serviços do smart home
-HOME_BROKER_PLAIN_NAME = (f"broker.home.{sim_config['LOCAL_DOMAIN']}", "192.168.2.1")
-HOME_STREAMSERVER_NAME = (f"ipcam.home.{sim_config['LOCAL_DOMAIN']}", "192.168.2.2")
 
-#SWITCH ligado ao router cloud north, liga o building monitor da smart home 
-coord_home_snorth = Position(coord_snorth.x + project.grid_unit * -4, coord_snorth.y - project.grid_unit * 2)
-home_snorth = create_node(server, project, coord_home_snorth.x, coord_home_snorth.y, switch_template_id)
-create_link(server, project, snorth["node_id"], 4, home_snorth["node_id"], 0)
+HOME_BROKER_PLAIN_NAME = (f"broker.home.{sim_config['LOCAL_DOMAIN']}", "192.168.1.1")
+#HOME_STREAMSERVER_NAME = (f"ipcam.home.{sim_config['LOCAL_DOMAIN']}", "192.168.2.2")
+
 
 ##############
 # SERVIDORES #
 ##############
 
 # Servidor MQTT
-home_mqtt_cloud_plain = create_node(server, project, coord_home_snorth.x + project.grid_unit * 1, coord_home_snorth.y - project.grid_unit * 2, mqtt_broker_1_6_template_id)
-create_link(server, project, home_snorth["node_id"], 1, home_mqtt_cloud_plain["node_id"], 0)
+home_mqtt_cloud_plain = create_node(server, project, coord.x + project.grid_unit * 1, coord.y + project.grid_unit * 2, mqtt_broker_1_6_template_id)
+create_link(server, project, szone["node_id"], 1, home_mqtt_cloud_plain["node_id"], 0)
 set_node_network_interfaces(server, project, home_mqtt_cloud_plain["node_id"], "eth0", ipaddress.IPv4Interface(f"{HOME_BROKER_PLAIN_NAME[1]}/20"), "192.168.0.1", lab_nameserver)
 
-# Servidor stream camera frente
-home_front_stream_cloud = create_node(server, project, coord_home_snorth.x - project.grid_unit * 1, coord_home_snorth.y - project.grid_unit * 2, stream_server_template_id)
-create_link(server, project, home_snorth["node_id"], 2, home_front_stream_cloud["node_id"], 0)
-set_node_network_interfaces(server, project, home_front_stream_cloud["node_id"], "eth0", ipaddress.IPv4Interface(f"{HOME_STREAMSERVER_NAME[1]}/20"), "192.168.0.1", lab_nameserver)
+# Cliente MQTT
+home_plain = create_node(server, project, coord.x + project.grid_unit * -1, coord.y + project.grid_unit * 2, building_monitor_template_id)
+create_link(server, project, szone["node_id"], 2, home_plain["node_id"], 0)
+set_node_network_interfaces(server, project, home_plain["node_id"], "eth0",  ipaddress.IPv4Interface("192.168.17.10/24"), "192.168.17.1", lab_nameserver)
 
-# Servidor stream camera do museu da casa
-#home_museum_stream_cloud = create_node(server, project, coord_home_snorth.x - project.grid_unit * 1, coord_home_snorth.y - project.grid_unit * 2, stream_server_template_id)
-#create_link(server, project, home_snorth["node_id"], 2, home_museum_stream_cloud["node_id"], 0)
-#set_node_network_interfaces(server, project, home_museum_stream_cloud["node_id"], "eth0", ipaddress.IPv4Interface(f"{HOME_STREAMSERVER_NAME[1]}/20"), "192.168.0.1", lab_nameserver)
+# Ligação ao broker MQTT cloud TLSs
+
+env = environment_string_to_dict(get_docker_node_environment(server, project, home_plain["node_id"]))
+env["MQTT_BROKER_ADDR"] = HOME_BROKER_PLAIN_NAME[0]
+env["NTP_SERVER"] = NTP_CLOUD_NAME[0]
+update_docker_node_environment(server, project, home_plain["node_id"], environment_dict_to_string(env))
+
 
 ###############
 # IoT DEVICES #
 ###############
 
+# Servidor stream camera frente
+#home_front_stream_cloud = create_node(server, project, coord_home_snorth.x - project.grid_unit * 1, coord_home_snorth.y - project.grid_unit * 2, stream_server_template_id)
+#create_link(server, project, home_snorth["node_id"], 2, home_front_stream_cloud["node_id"], 0)
+#set_node_network_interfaces(server, project, home_front_stream_cloud["node_id"], "eth0", ipaddress.IPv4Interface(f"{HOME_STREAMSERVER_NAME[1]}/20"), "192.168.0.1", lab_nameserver)
+
 # HOME FRONT IP camera 
-home_front_clus_ipcam = create_cluster_of_nodes(server, project, 1, coords_west_zone[1].x + project.grid_unit * 5, coords_west_zone[1].y + project.grid_unit * 2, 2,
-                                           switch_template_id, ip_camera_street_template_id, switches_west_zone[1]["node_id"], 2,
-                                           ipaddress.IPv4Interface("192.168.18.15/24"), "192.168.18.1", lab_nameserver, 1.5)
-for d in home_front_clus_ipcam[1]:
-    env = environment_string_to_dict(get_docker_node_environment(server, project, d["node_id"]))
-    env["STREAM_SERVER_ADDR"] = HOME_STREAMSERVER_NAME[0]
-    env["STREAM_NAME"] = d["name"]
-    update_docker_node_environment(server, project, d["node_id"], environment_dict_to_string(env))
-
-# HOME MUSEUM IP camera
-home_museum_clus_ipcam = create_cluster_of_nodes(server, project, 1, coords_west_zone[0].x + project.grid_unit * 5, coords_west_zone[0].y + project.grid_unit * 2, 2,
-                                                 switch_template_id, ip_camera_museum_template_id, switches_west_zone[0]["node_id"], 2,
-                                                 ipaddress.IPv4Interface("192.168.17.15/24"), "192.168.17.1", lab_nameserver, 1.5)
-for d in home_museum_clus_ipcam[1]:
-    env = environment_string_to_dict(get_docker_node_environment(server, project, d["node_id"]))
-    env["STREAM_SERVER_ADDR"] = HOME_STREAMSERVER_NAME[0]
-    env["STREAM_NAME"] = d["name"]
-    update_docker_node_environment(server, project, d["node_id"], environment_dict_to_string(env))
-
-home_museum_clus_ipconsum = create_cluster_of_nodes(server, project, 1, coords_west_zone[0].x + project.grid_unit * 5, coords_west_zone[0].y + project.grid_unit * 7, 2,
-                                                    switch_template_id, stream_consumer_template_id, switches_west_zone[0]["node_id"], 3,
-                                                    ipaddress.IPv4Interface("192.168.17.17/24"), "192.168.17.1", lab_nameserver, 1.5)
-for i, d in enumerate(home_museum_clus_ipconsum[1]):
-    env = environment_string_to_dict(get_docker_node_environment(server, project, d["node_id"]))
-    env["STREAM_SERVER_ADDR"] = HOME_STREAMSERVER_NAME[0]
-    env["STREAM_NAME"] = home_museum_clus_ipcam[1][i]["name"]
-    update_docker_node_environment(server, project, d["node_id"], environment_dict_to_string(env))
+#home_front_clus_ipcam = create_cluster_of_nodes(server, project, 1, coords_west_zone[1].x + project.grid_unit * 5, coords_west_zone[1].y + project.grid_unit * 2, 2,
+#                                           switch_template_id, ip_camera_street_template_id, switches_west_zone[1]["node_id"], 2,
+#                                           ipaddress.IPv4Interface("192.168.18.15/24"), "192.168.18.1", lab_nameserver, 1.5)
+#for d in home_front_clus_ipcam[1]:
+#    env = environment_string_to_dict(get_docker_node_environment(server, project, d["node_id"]))
+#    env["STREAM_SERVER_ADDR"] = HOME_STREAMSERVER_NAME[0]
+#    env["STREAM_NAME"] = d["name"]
+#    update_docker_node_environment(server, project, d["node_id"], environment_dict_to_string(env))
 
 
 
@@ -287,10 +270,10 @@ for i, d in enumerate(home_museum_clus_ipconsum[1]):
   
 
 EXTRA_HOSTS = {NTP_CLOUD_NAME[0]: NTP_CLOUD_NAME[1],
-               HOME_BROKER_PLAIN_NAME[0]: HOME_BROKER_PLAIN_NAME[1],
-               HOME_STREAMSERVER_NAME[0]: HOME_STREAMSERVER_NAME[1],
-               MQTT_CLOUD_TLS_NAME[0]: MQTT_CLOUD_TLS_NAME[1]}
-
+               HOME_BROKER_PLAIN_NAME[0]: HOME_BROKER_PLAIN_NAME[1]
+               #HOME_STREAMSERVER_NAME[0]: HOME_STREAMSERVER_NAME[1],
+               #MQTT_CLOUD_TLS_NAME[0]: MQTT_CLOUD_TLS_NAME[1]
+}
 update_docker_node_extrahosts(server, project, dns["node_id"], extrahosts_dict_to_string(EXTRA_HOSTS))
 
 check_ipaddrs(server, project)
