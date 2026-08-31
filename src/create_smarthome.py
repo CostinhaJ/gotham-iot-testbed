@@ -210,11 +210,25 @@ set_node_network_interfaces(server, project, ntp["node_id"], "eth0", ipaddress.I
 ######################
 
 MQTT_CLOUD_TLS_NAME = (sim_config["MQTT_TLS_BROKER_CN"], "192.168.0.4")
+HOME_BROKER_PLAIN_NAME = (f"broker.home.{sim_config['LOCAL_DOMAIN']}", "192.168.17.2")
+HOME_STREAMSERVER_NAME = (f"ipcam.home.{sim_config['LOCAL_DOMAIN']}", "192.168.2.2")
 
 mqtt_cloud_tls = create_node(server, project, coord_cloud_snorth.x + project.grid_unit * 3, coord_cloud_snorth.y - project.grid_unit * 2, mqtt_broker_tls_template_id)
 create_link(server, project, cloud_snorth["node_id"], 3, mqtt_cloud_tls["node_id"], 0)
 set_node_network_interfaces(server, project, mqtt_cloud_tls["node_id"], "eth0", ipaddress.IPv4Interface(f"{MQTT_CLOUD_TLS_NAME[1]}/20"), "192.168.0.1", lab_nameserver)
 
+home_plain = create_node(server, project, coords_west_zone[0].x - project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 2, building_monitor_template_id)
+create_link(server, project, szone["node_id"], 2, home_plain["node_id"], 0)
+set_node_network_interfaces(server, project, home_plain["node_id"], "eth0",  ipaddress.IPv4Interface("192.168.17.10/24"), "192.168.17.1", lab_nameserver)
+
+# Ligação ao broker MQTT cloud TLSs
+env = environment_string_to_dict(get_docker_node_environment(server, project, home_plain["node_id"]))
+env["MQTT_BROKER_ADDR"] = MQTT_CLOUD_TLS_NAME[0]
+#env["MQTT_AUTH"] = "admin:adminpass"
+#env["MQTT_AUTH"] = "production:passw0rd"
+env["TLS"] = "True"
+env["NTP_SERVER"] = NTP_CLOUD_NAME[0]
+update_docker_node_environment(server, project, home_plain["node_id"], environment_dict_to_string(env))
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -227,8 +241,8 @@ set_node_network_interfaces(server, project, mqtt_cloud_tls["node_id"], "eth0", 
 #Nomes e IPs dos serviços do smart home
 
 # broker local, na propria LAN da casa (192.168.17.0/24)
-HOME_BROKER_PLAIN_NAME = (f"broker.home.{sim_config['LOCAL_DOMAIN']}", "192.168.17.2")
-HOME_STREAMSERVER_NAME = (f"ipcam.home.{sim_config['LOCAL_DOMAIN']}", "192.168.2.2")
+#HOME_BROKER_PLAIN_NAME = (f"broker.home.{sim_config['LOCAL_DOMAIN']}", "192.168.17.2")
+#HOME_STREAMSERVER_NAME = (f"ipcam.home.{sim_config['LOCAL_DOMAIN']}", "192.168.2.2")
 
 
 ##############
@@ -236,21 +250,21 @@ HOME_STREAMSERVER_NAME = (f"ipcam.home.{sim_config['LOCAL_DOMAIN']}", "192.168.2
 ##############
 
 # Servidor MQTT (LAN da casa: 192.168.17.0/24, gateway rzone 192.168.17.1)
-home_mqtt_plain = create_node(server, project, coords_west_zone[0].x + project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 2, mqtt_broker_1_6_template_id)
-create_link(server, project, szone["node_id"], 1, home_mqtt_plain["node_id"], 0)
-set_node_network_interfaces(server, project, home_mqtt_plain["node_id"], "eth0", ipaddress.IPv4Interface(f"{HOME_BROKER_PLAIN_NAME[1]}/24"), "192.168.17.1", lab_nameserver)
-
-# Cliente MQTT (mesma LAN)
-home_plain = create_node(server, project, coords_west_zone[0].x - project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 2, building_monitor_template_id)
-create_link(server, project, szone["node_id"], 2, home_plain["node_id"], 0)
-set_node_network_interfaces(server, project, home_plain["node_id"], "eth0",  ipaddress.IPv4Interface("192.168.17.10/24"), "192.168.17.1", lab_nameserver)
-
-# Ligação ao broker MQTT cloud TLSs
-
-env = environment_string_to_dict(get_docker_node_environment(server, project, home_plain["node_id"]))
-env["MQTT_BROKER_ADDR"] = HOME_BROKER_PLAIN_NAME[0]
-env["NTP_SERVER"] = NTP_CLOUD_NAME[0]
-update_docker_node_environment(server, project, home_plain["node_id"], environment_dict_to_string(env))
+#home_mqtt_plain = create_node(server, project, coords_west_zone[0].x + project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 2, mqtt_broker_1_6_template_id)
+#create_link(server, project, szone["node_id"], 1, home_mqtt_plain["node_id"], 0)
+#set_node_network_interfaces(server, project, home_mqtt_plain["node_id"], "eth0", ipaddress.IPv4Interface(f"{HOME_BROKER_PLAIN_NAME[1]}/24"), "192.168.17.1", lab_nameserver)
+#
+## Cliente MQTT (mesma LAN)
+#home_plain = create_node(server, project, coords_west_zone[0].x - project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 2, building_monitor_template_id)
+#create_link(server, project, szone["node_id"], 2, home_plain["node_id"], 0)
+#set_node_network_interfaces(server, project, home_plain["node_id"], "eth0",  ipaddress.IPv4Interface("192.168.17.10/24"), "192.168.17.1", lab_nameserver)
+#
+## Ligação ao broker MQTT cloud TLSs
+#
+#env = environment_string_to_dict(get_docker_node_environment(server, project, home_plain["node_id"]))
+#env["MQTT_BROKER_ADDR"] = HOME_BROKER_PLAIN_NAME[0]
+#env["NTP_SERVER"] = NTP_CLOUD_NAME[0]
+#update_docker_node_environment(server, project, home_plain["node_id"], environment_dict_to_string(env))
 
 
 ###############
