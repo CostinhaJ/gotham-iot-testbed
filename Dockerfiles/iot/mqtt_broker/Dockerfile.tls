@@ -1,4 +1,4 @@
-FROM eclipse-mosquitto:2.0-openssl
+FROM openquantumsafe/mosquitto:latest
 
 ADD --chown=mosquitto:mosquitto mosquitto_tls.conf /mosquitto/config/mosquitto.conf
 

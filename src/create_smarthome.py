@@ -51,10 +51,6 @@ certificates_template_id = get_template_id_from_name(templates, "iotsim-certific
 assert certificates_template_id
 NTP_template_id = get_template_id_from_name(templates, "iotsim-ntp")
 assert NTP_template_id
-mqtt_broker_1_6_template_id = get_template_id_from_name(templates, "iotsim-mqtt-broker-1.6")
-assert mqtt_broker_1_6_template_id
-mqtt_broker_1_6_auth_template_id = get_template_id_from_name(templates, "iotsim-mqtt-broker-1.6-auth")
-assert mqtt_broker_1_6_auth_template_id
 mqtt_broker_tls_template_id = get_template_id_from_name(templates, "iotsim-mqtt-broker-tls")
 assert mqtt_broker_tls_template_id
 building_monitor_template_id = get_template_id_from_name(templates, "iotsim-building-monitor")

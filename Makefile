@@ -2,6 +2,9 @@ BUILD_CMD = docker build
 ifdef NOCACHE
 BUILD_CMD += --no-cache
 endif
+ifdef PULL
+BUILD_CMD += --pull
+endif
 
 CONFIG_FILE = iot-sim.config
 include $(CONFIG_FILE)
@@ -10,8 +13,7 @@ include $(CONFIG_FILE)
 .PHONY: all templates vyosiso clean imagerm
 
 all: buildstatus/DNS buildstatus/certificates buildstatus/NTP \
-     buildstatus/mqtt_broker_1.6 buildstatus/mqtt_broker_1.6_auth buildstatus/mqtt_broker_tls \
-     buildstatus/mqtt_client_t1 buildstatus/mqtt_client_t2 \
+     buildstatus/mqtt_broker_tls \
      buildstatus/building_monitor buildstatus/ip_camera_street \
      buildstatus/ip_camera_museum buildstatus/stream_server buildstatus/stream_consumer \
      buildstatus/debug_client
@@ -43,27 +45,11 @@ buildstatus/NTP: Dockerfiles/NTP/Dockerfile Dockerfiles/NTP/chrony.conf
 	$(BUILD_CMD) --file $< --tag iotsim/ntp Dockerfiles/NTP
 	@touch $@
 
-buildstatus/mqtt_broker_1.6: Dockerfiles/iot/mqtt_broker/Dockerfile.1.6
-	$(BUILD_CMD) --file $< --tag iotsim/mqtt-broker-1.6 Dockerfiles/iot/mqtt_broker
-	@touch $@
-
-buildstatus/mqtt_broker_1.6_auth: Dockerfiles/iot/mqtt_broker/Dockerfile.1.6.auth Dockerfiles/iot/mqtt_broker/mosquitto_1.6.auth.conf Dockerfiles/iot/mqtt_broker/mosquitto_1.6.auth.passwd
-	$(BUILD_CMD) --file $< --tag iotsim/mqtt-broker-1.6-auth Dockerfiles/iot/mqtt_broker
-	@touch $@
-
 buildstatus/mqtt_broker_tls: Dockerfiles/iot/mqtt_broker/Dockerfile.tls Dockerfiles/iot/mqtt_broker/mosquitto_tls.conf buildstatus/certificates
 	$(BUILD_CMD) --file $< --tag iotsim/mqtt-broker-tls Dockerfiles/iot/mqtt_broker
 	@touch $@
 
-buildstatus/mqtt_client_t1: Dockerfiles/iot/mqtt_client_t1/Dockerfile Dockerfiles/iot/mqtt_client_t1/client.py
-	$(BUILD_CMD) --file $< --tag iotsim/mqtt-client-t1 Dockerfiles/iot/mqtt_client_t1
-	@touch $@
-
-buildstatus/mqtt_client_t2: Dockerfiles/iot/mqtt_client_t2/Dockerfile Dockerfiles/iot/mqtt_client_t2/client.py
-	$(BUILD_CMD) --file $< --tag iotsim/mqtt-client-t2 Dockerfiles/iot/mqtt_client_t2
-	@touch $@
-
-buildstatus/building_monitor: Dockerfiles/iot/building_monitor/Dockerfile Dockerfiles/iot/building_monitor/client.py Dockerfiles/iot/building_monitor/appliances_energy/energydata_complete.csv.xz buildstatus/certificates
+buildstatus/building_monitor: Dockerfiles/iot/building_monitor/Dockerfile Dockerfiles/iot/building_monitor/client.py Dockerfiles/iot/building_monitor/openssl-oqs.cnf Dockerfiles/iot/building_monitor/appliances_energy/energydata_complete.csv.xz buildstatus/certificates
 	$(BUILD_CMD) --file $< --tag iotsim/building-monitor Dockerfiles/iot/building_monitor
 	@touch $@
 
