@@ -1,6 +1,28 @@
 FROM openquantumsafe/mosquitto:latest
 
+# Esta imagem arranca por omissão via /test/broker-start.sh (o ENTRYPOINT
+# herdado da base), que:
+#   1. reescreve mosquitto.conf do zero num caminho relativo, ignorando
+#      por completo qualquer ficheiro que copiemos para /mosquitto/config/;
+#   2. gera a sua própria CA e certificado de servidor (SIG_ALG=mldsa65 por
+#      omissão), sem qualquer relação com a PKI do projeto (iotsim/certificates);
+#   3. usa Groups=mlkem768:p384_mlkem768, fixo como texto em
+#      /opt/oqssa/ssl/openssl.cnf (não é $ENV::TLS_DEFAULT_GROUPS, por isso
+#      a env var não tinha qualquer efeito).
+#
+# Ajustamos só a linha Groups= desse openssl.cnf (mantendo o resto da config
+# da imagem, que já sabemos que carrega o oqsprovider corretamente) e
+# arrancamos o mosquitto diretamente, contornando o broker-start.sh, para
+# usar a nossa própria mosquitto_tls.conf e a PKI do projeto.
+RUN sed -i "s/^Groups = .*/Groups = X25519MLKEM768:mlkem768:p384_mlkem768:x25519:secp256r1/" /opt/oqssa/ssl/openssl.cnf
+
 ADD --chown=mosquitto:mosquitto mosquitto_tls.conf /mosquitto/config/mosquitto.conf
 
 COPY --from=iotsim/certificates:latest --chown=mosquitto:mosquitto /artifacts/pki/* /mosquitto/config/
 
+# o utilizador 'mosquitto' não existe nesta imagem, por isso o mosquitto cai
+# sempre para 'nobody' (ver aviso "Unable to drop privileges"). Sem isto,
+# o 'nobody' não tem permissão de leitura na chave privada copiada acima.
+RUN chmod 644 /mosquitto/config/*.key /mosquitto/config/*.crt
+
+ENTRYPOINT ["mosquitto", "-c", "/mosquitto/config/mosquitto.conf", "-v"]

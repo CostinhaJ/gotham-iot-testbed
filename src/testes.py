@@ -69,3 +69,6 @@ for n in general_services:
 
 stop_all_switches(server, project)
 stop_all_routers(server, project)
+
+
+building_monitor = get_nodes_id_by_name_regexp(server, project, re.compile("iotsim-building-monitor-1", re.IGNORECASE))
