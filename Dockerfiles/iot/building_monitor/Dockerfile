@@ -16,15 +16,18 @@ RUN apt update && apt install -y --no-install-recommends \
 
 RUN pip3 install --no-cache-dir paho-mqtt
 
+ARG LIBOQS_TAG=0.13.0
+ARG OQSPROVIDER_TAG=0.9.0
+
 # --- liboqs (biblioteca dos algoritmos pós-quânticos) ---
-RUN git clone --depth 1 https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs \
+RUN git clone --depth 1 --branch ${LIBOQS_TAG} https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs \
     && cmake -S /tmp/liboqs -B /tmp/liboqs/build -GNinja \
     && cmake --build /tmp/liboqs/build --parallel \
     && cmake --install /tmp/liboqs/build \
     && rm -rf /tmp/liboqs
 
 # --- oqs-provider (plugin que liga o liboqs ao OpenSSL 3) ---
-RUN git clone --depth 1 https://github.com/open-quantum-safe/oqs-provider.git /tmp/oqs-provider \
+RUN git clone --depth 1 --branch ${OQSPROVIDER_TAG} https://github.com/open-quantum-safe/oqs-provider.git /tmp/oqs-provider \
     && cmake -S /tmp/oqs-provider -B /tmp/oqs-provider/build -GNinja \
     && cmake --build /tmp/oqs-provider/build --parallel \
     && cmake --install /tmp/oqs-provider/build \
