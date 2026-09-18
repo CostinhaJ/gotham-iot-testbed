@@ -12,7 +12,8 @@ import subprocess
 import sys
 import threading
 import time
-
+import joblib
+import numpy as np
 import paho.mqtt.publish as publish
 
 
@@ -20,9 +21,11 @@ config = {"MQTT_BROKER_ADDR": "localhost",
           "MQTT_TOPIC_PUB": "building",
           "MQTT_AUTH": "",
           "MQTT_QOS": 0,
-          "TLS": "",
+          "TLS": "",    # TLS GROUP from available TLS options: X25519MLKEM768:mlkem768:p384_mlkem768:x25519:secp256r1
           "TLS_INSECURE": "false",
-          "SLEEP_TIME": 100,
+          "MODEL_PATH": "./models/decision_model.joblib",          # trained decision model (joblib), must expose .predict()
+          "NORMALIZATION_PATH": "./models/normalization.joblib",   # normalization fitted on the training data, see normalize_features()
+          "SLEEP_TIME": 20,
           "SLEEP_TIME_SD": 1,
           "PING_SLEEP_TIME": 60,
           "PING_SLEEP_TIME_SD": 1,
@@ -52,6 +55,68 @@ def readloop(file, openfunc=open, skipfirst=True):
 def as_json(payload):
     """Dictionary to json."""
     return json.dumps(payload)
+
+
+# --- Decision model: per-reading adaptive TLS security level ---------------
+#
+# Each CSV row is classified by the pre-trained decision model into one of 3
+# NIST post-quantum security levels. That level picks the TLS 1.3 group used
+# for the MQTT publish of that particular reading, out of the groups already
+# listed in config["TLS"]'s comment.
+#
+# ASSUMPTION: the model's predict() returns 1/2/3. If it was trained to
+# output the raw NIST PQC categories (1/3/5) or 0-indexed classes (0/1/2),
+# change the keys below to match.
+NIST_LEVEL_TO_TLS_GROUP = {
+    0: "x25519",           # classical only     - lowest overhead / lowest security
+    1: "mlkem768",          # pure PQC           - NIST category 3 equivalent
+    2: "X25519MLKEM768",    # hybrid classical+PQC - highest security
+}
+
+
+def normalize_features(features, normalizer):
+    """Normalize a raw feature vector (shape (1, n_features)) with the fitted
+    normalizer loaded from NORMALIZATION_PATH.
+
+    Supports the two most common formats for that file:
+      1. A fitted scikit-learn transformer (StandardScaler, MinMaxScaler...)
+         saved with joblib -> exposes .transform().
+      2. A plain dict (saved with joblib/pickle) with "mean"/"std" (z-score)
+         or "min"/"max" (min-max) arrays, one value per feature.
+    Adjust this function if your normalization file uses a different format.
+    """
+    if hasattr(normalizer, "transform"):
+        return normalizer.transform(features)
+
+    if isinstance(normalizer, dict):
+        arr = np.asarray(features, dtype=float)
+        if "mean" in normalizer and "std" in normalizer:
+            mean = np.asarray(normalizer["mean"], dtype=float)
+            std = np.asarray(normalizer["std"], dtype=float)
+            std = np.where(std == 0, 1.0, std)  # avoid divide-by-zero on constant columns
+            return (arr - mean) / std
+        if "min" in normalizer and "max" in normalizer:
+            lo = np.asarray(normalizer["min"], dtype=float)
+            hi = np.asarray(normalizer["max"], dtype=float)
+            span = np.where((hi - lo) == 0, 1.0, hi - lo)
+            return (arr - lo) / span
+
+    raise TypeError("Unrecognized normalization file format; adjust normalize_features() to match it.")
+
+
+def classify_security_level(data_line, model, normalizer):
+    """Classify one already-parsed CSV row and return the NIST security
+    level (see NIST_LEVEL_TO_TLS_GROUP) predicted by the decision model.
+
+    `data_line` must already have the same typing applied as in the
+    telemetry loop (ints for columns 1:3, floats for columns 3:), i.e. every
+    field except the leading date/time column is numeric. Change the slice
+    below if the model expects a different subset/order of columns.
+    """
+    features = np.asarray(data_line[1:], dtype=float).reshape(1, -1)
+    normalized = normalize_features(features, normalizer)
+    prediction = model.predict(normalized)[0]
+    return int(prediction)
 
 
 def signal_handler(signum, stackframe, event):
@@ -104,8 +169,13 @@ def ntp_client(sleep_t, sleep_t_sd, die_event, ntp_server, ntp_bin):
     print("[   ntp   ] killing thread")
 
 
-def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mqtt_auth, mqtt_qos, mqtt_tls, mqtt_cacert, mqtt_tls_insecure):
-    """Periodically send sensor data to the MQTT broker."""
+def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mqtt_auth, mqtt_qos, mqtt_tls, mqtt_cacert, mqtt_tls_insecure, decision_model, normalizer):
+    """Periodically send sensor data to the MQTT broker.
+
+    Before each publish, the reading just read from the CSV is classified by
+    `decision_model` (see classify_security_level()); the resulting NIST
+    level selects the TLS group used for that publish.
+    """
     print("[telemetry] starting thread")
     dataset_fname = "/energydata_complete.csv.xz"
     dataset_fieldseparator = ","
@@ -222,6 +292,31 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
             data_line[1:3] = list(map(int, data_line[1:3]))
             data_line[3:] = list(map(float, data_line[3:]))
 
+            # --- adaptive TLS: classify this reading and pick the TLS group ---
+            if decision_model is not None and normalizer is not None:
+                try:
+                    security_level = classify_security_level(data_line, decision_model, normalizer)
+                    selected_group = NIST_LEVEL_TO_TLS_GROUP.get(security_level)
+                    if selected_group is None:
+                        print(f"[telemetry] decision model returned unexpected level {security_level}; keeping current TLS group")
+                    else:
+                        print(f"[telemetry] decision model -> NIST level {security_level} -> TLS group '{selected_group}'")
+                        if tls_arg is not None:
+                            # NOTE: paho's `ciphers` kwarg is forwarded to
+                            # ssl.SSLContext.set_ciphers(), which picks TLS
+                            # *cipher suites*, not the TLS 1.3 key-exchange
+                            # group. Double check this is how your
+                            # OpenSSL/oqs-provider build expects the PQC
+                            # group to be selected; otherwise you'll need a
+                            # custom ssl.SSLContext with the group set (e.g.
+                            # SSLContext.set_groups() on OpenSSL 3.2+, or via
+                            # an OpenSSL config file) passed through
+                            # client.tls_set_context() instead of the
+                            # tls=... shortcut used below.
+                            config["TLS"] = selected_group
+                except Exception as e:
+                    print(f"[telemetry] decision model error: {e}; keeping current TLS group")
+
             # list of mqtt messages, each message = ("<topic>", "<payload>", qos, retain)
             msgs = []
             for zone in set(dataset_zones):
@@ -265,7 +360,8 @@ def main(conf):
                                               conf["SLEEP_TIME_SD"],
                                               event, die_event,
                                               conf["MQTT_TOPIC_PUB"], conf["MQTT_BROKER_ADDR"], conf["mqtt_auth"], conf["MQTT_QOS"],
-                                              conf["TLS"], conf["ca_cert_file"], conf["tls_insecure"]),
+                                              conf["TLS"], conf["ca_cert_file"], conf["tls_insecure"],
+                                              conf["decision_model"], conf["normalizer"]),
                                         kwargs={})
     broker_ping_thread = threading.Thread(target=broker_ping,
                                             name="broker_ping",
@@ -333,6 +429,17 @@ if __name__ == "__main__":
     if config["NTP_SLEEP_TIME"] <= 0:
         config["ntp_bin"] = None
         print("[  setup  ] Disabling ntp.")
+
+    # Load the decision model + normalization file once. They're then handed
+    # to the telemetry thread, which calls classify_security_level() on every
+    # CSV row to pick that reading's TLS group (see NIST_LEVEL_TO_TLS_GROUP).
+    try:
+        config["decision_model"] = joblib.load(config["MODEL_PATH"])
+        config["normalizer"] = joblib.load(config["NORMALIZATION_PATH"])
+        print(f"[  setup  ] loaded decision model from `{config['MODEL_PATH']}' "
+              f"and normalization file from `{config['NORMALIZATION_PATH']}'")
+    except FileNotFoundError as e:
+        sys.exit(f"[  setup  ] could not load decision model / normalization file: {e}")
 
     if not ping(config["ping_bin"], config["MQTT_BROKER_ADDR"]):
         sys.exit(f"[  setup  ] {config['MQTT_BROKER_ADDR']} is down")

@@ -14,7 +14,12 @@ RUN apt update && apt install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --no-cache-dir paho-mqtt
+RUN pip3 install --no-cache-dir \
+    paho-mqtt \
+    joblib \
+    numpy \
+    scikit-learn \
+    xgboost
 
 ARG LIBOQS_TAG=0.13.0
 ARG OQSPROVIDER_TAG=0.9.0
@@ -39,6 +44,9 @@ ENV OPENSSL_CONF=/etc/ssl/openssl-oqs.cnf
 
 COPY appliances_energy/energydata_complete.csv.xz /energydata_complete.csv.xz
 COPY --from=iotsim/certificates:latest /artifacts/pki/iot-sim-ca.crt /iot-sim-ca.crt
+
+COPY models/decision_model.joblib /models/decision_model.joblib
+COPY models/normalization.joblib /models/normalization.joblib
 
 COPY client.py /client.py
 RUN chmod +x /client.py
