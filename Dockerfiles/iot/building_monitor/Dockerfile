@@ -48,6 +48,7 @@ COPY --from=iotsim/certificates:latest /artifacts/pki/iot-sim-ca.crt /iot-sim-ca
 COPY models/decision_model.joblib /models/decision_model.joblib
 COPY models/normalization.joblib /models/normalization.joblib
 
+COPY tls_groups.py /tls_groups.py
 COPY client.py /client.py
 RUN chmod +x /client.py
 

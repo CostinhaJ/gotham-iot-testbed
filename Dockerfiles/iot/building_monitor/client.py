@@ -16,6 +16,8 @@ import joblib
 import numpy as np
 import paho.mqtt.publish as publish
 
+import tls_groups
+
 
 config = {"MQTT_BROKER_ADDR": "localhost",
           "MQTT_TOPIC_PUB": "building",
@@ -72,6 +74,41 @@ NIST_LEVEL_TO_TLS_GROUP = {
     1: "mlkem768",          # pure PQC           - NIST category 3 equivalent
     2: "X25519MLKEM768",    # hybrid classical+PQC - highest security
 }
+
+# Used for the very first publish(es), before the decision model has had a
+# chance to classify a reading (or if it's unavailable/errors out). Offered
+# as a preference list (highest security first) rather than a single group,
+# so the handshake still succeeds against a broker/oqs-provider build that
+# doesn't support the top preference.
+DEFAULT_TLS_GROUPS = "X25519MLKEM768:mlkem768:x25519:secp256r1"
+
+
+def build_tls_context(ca_certs, tls_group, insecure):
+    """Build a fresh client-side ssl.SSLContext with the TLS 1.3 key-exchange
+    group(s) pinned to `tls_group` (single group or colon-separated
+    preference list, e.g. "X25519MLKEM768" or DEFAULT_TLS_GROUPS).
+
+    A *new* SSLContext is built per publish rather than reused, because the
+    group has to change per reading -- reusing one context and calling
+    set_groups() again between connections is unnecessary risk (no
+    guarantee OpenSSL doesn't cache/derive anything from the previous
+    negotiation), and a fresh SSLContext is cheap relative to the
+    ~SLEEP_TIME publish cadence here.
+
+    Raises ssl.SSLError if `tls_group` isn't recognized -- e.g. a PQC group
+    name but the local OpenSSL build doesn't have oqs-provider loaded/
+    configured (see tls_groups.py's module docstring and selftest()).
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+    ctx.load_verify_locations(ca_certs)
+    if insecure:
+        # Mirrors what paho's tls dict `insecure` flag does: keep the
+        # channel encrypted but skip server hostname verification.
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    tls_groups.set_groups(ctx, tls_group)
+    return ctx
 
 
 def normalize_features(features, normalizer):
@@ -280,10 +317,10 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
     print(f"[telemetry] opened `{dataset_fname}'")
 
     if mqtt_tls:
-        tls_arg = {"ca_certs": mqtt_cacert, "insecure": mqtt_tls_insecure}
+        current_tls_group = DEFAULT_TLS_GROUPS
         port = 8883
     else:
-        tls_arg = None
+        current_tls_group = None
         port = 1883
 
     while not die_event.is_set():
@@ -293,29 +330,17 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
             data_line[3:] = list(map(float, data_line[3:]))
 
             # --- adaptive TLS: classify this reading and pick the TLS group ---
-            if decision_model is not None and normalizer is not None:
+            if mqtt_tls and decision_model is not None and normalizer is not None:
                 try:
                     security_level = classify_security_level(data_line, decision_model, normalizer)
                     selected_group = NIST_LEVEL_TO_TLS_GROUP.get(security_level)
                     if selected_group is None:
-                        print(f"[telemetry] decision model returned unexpected level {security_level}; keeping current TLS group")
+                        print(f"[telemetry] decision model returned unexpected level {security_level}; keeping current TLS group '{current_tls_group}'")
                     else:
                         print(f"[telemetry] decision model -> NIST level {security_level} -> TLS group '{selected_group}'")
-                        if tls_arg is not None:
-                            # NOTE: paho's `ciphers` kwarg is forwarded to
-                            # ssl.SSLContext.set_ciphers(), which picks TLS
-                            # *cipher suites*, not the TLS 1.3 key-exchange
-                            # group. Double check this is how your
-                            # OpenSSL/oqs-provider build expects the PQC
-                            # group to be selected; otherwise you'll need a
-                            # custom ssl.SSLContext with the group set (e.g.
-                            # SSLContext.set_groups() on OpenSSL 3.2+, or via
-                            # an OpenSSL config file) passed through
-                            # client.tls_set_context() instead of the
-                            # tls=... shortcut used below.
-                            config["TLS"] = selected_group
+                        current_tls_group = selected_group
                 except Exception as e:
-                    print(f"[telemetry] decision model error: {e}; keeping current TLS group")
+                    print(f"[telemetry] decision model error: {e}; keeping current TLS group '{current_tls_group}'")
 
             # list of mqtt messages, each message = ("<topic>", "<payload>", qos, retain)
             msgs = []
@@ -329,8 +354,23 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
 
             # publish multiple messages to the broker and disconnect cleanly.
             try:
-                # publish.multiple modifies the tls dictionary (pops 'insecure' key). Pass a copy.
-                publish.multiple(msgs, hostname=broker_addr, port=port, auth=mqtt_auth, tls=tls_arg.copy() if tls_arg else None)
+                if mqtt_tls:
+                    # A fresh SSLContext per publish, with the TLS 1.3
+                    # key-exchange group pinned to this reading's selected
+                    # group via tls_groups.set_groups() (backport of
+                    # CPython 3.14's SSLContext.set_groups(), i.e.
+                    # SSL_CTX_set1_groups_list -- see tls_groups.py).
+                    # `ciphers=` only affects pre-1.3 cipher suites, not
+                    # the key-exchange group, and set_ecdh_curve() rejects
+                    # PQC/hybrid group names outright -- neither can do
+                    # this. publish.multiple() accepts a pre-built
+                    # SSLContext directly (processed via
+                    # client.tls_set_context()) in place of the ca_certs/
+                    # ciphers/insecure dict form.
+                    tls_kwarg = build_tls_context(mqtt_cacert, current_tls_group, mqtt_tls_insecure)
+                else:
+                    tls_kwarg = None
+                publish.multiple(msgs, hostname=broker_addr, port=port, auth=mqtt_auth, tls=tls_kwarg)
             except ConnectionRefusedError as e:
                 print(f"[telemetry] {e}")
                 die_event.set()
