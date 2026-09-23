@@ -220,7 +220,7 @@ env["TLS"] = "True"
 env["NTP_SERVER"] = NTP_CLOUD_NAME[0]
 update_docker_node_environment(server, project, home_plain["node_id"], environment_dict_to_string(env))
 
-sensor_client = create_node(server, project, coords_west_zone[0].x - project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 4, sensor_tls_template_id)
+sensor_client = create_node(server, project, coords_west_zone[0].x - project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 4, sensor_template_id)
 create_link(server, project, szone["node_id"], 3, sensor_client["node_id"], 0)
 set_node_network_interfaces(server, project, sensor_client["node_id"], "eth0",  ipaddress.IPv4Interface("192.168.17.11/24"), "192.168.17.1", lab_nameserver)
 env = environment_string_to_dict(get_docker_node_environment(server, project, sensor_client["node_id"]))
