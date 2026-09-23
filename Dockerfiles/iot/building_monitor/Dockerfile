@@ -1,3 +1,40 @@
+# =========================================================================
+# Estágio 1: compilar o coap-client (libcoap 4.3.0 + tinydtls)
+# =========================================================================
+FROM ubuntu:jammy AS coap-builder
+
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
+    git \
+    build-essential \
+    pkg-config \
+    autoconf \
+    automake \
+    libtool \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/libcoap
+RUN git clone https://github.com/obgm/libcoap.git . \
+    && git checkout release-4.3.0 \
+    && git submodule init \
+    && git submodule update
+
+COPY coap-client-mod.c examples/coap-client.c
+
+# O autoconf 2.71 (jammy) exige que os ficheiros auxiliares existam, mas o
+# tinydtls não usa automake para os criar -> copiá-los do automake.
+RUN for f in ar-lib compile config.guess config.sub install-sh missing; do \
+        [ -e ext/tinydtls/$f ] || cp /usr/share/automake-1.16/$f ext/tinydtls/; \
+    done
+
+RUN ./autogen.sh \
+    && ./configure --enable-examples --enable-dtls --with-tinydtls \
+                   --disable-shared --disable-documentation \
+    && make
+
+
+# =========================================================================
+# Estágio 2: nó Edge (MQTT + TLS pós-quântico + CoAP)
+# =========================================================================
 FROM ubuntu:jammy
 
 RUN apt update && apt install -y --no-install-recommends \
@@ -44,6 +81,11 @@ ENV OPENSSL_CONF=/etc/ssl/openssl-oqs.cnf
 
 COPY appliances_energy/energydata_complete.csv.xz /energydata_complete.csv.xz
 COPY --from=iotsim/certificates:latest /artifacts/pki/iot-sim-ca.crt /iot-sim-ca.crt
+
+# --- CoAP: binário compilado no estágio 1 + chave PSK ---
+# O client.py procura 'coap-client' no PATH e em /opt, e lê a PSK de /opt/psk.txt
+COPY --from=coap-builder /opt/libcoap/examples/coap-client-tinydtls /opt/coap-client
+COPY --from=iotsim/certificates:latest /artifacts/psk/psk.txt /opt/psk.txt
 
 COPY models/decision_model.joblib /models/decision_model.joblib
 COPY models/normalization.joblib /models/normalization.joblib

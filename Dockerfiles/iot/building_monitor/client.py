@@ -15,6 +15,10 @@ import time
 import joblib
 import numpy as np
 import paho.mqtt.publish as publish
+import ipaddress
+
+import shlex
+from typing import List
 
 import tls_groups
 
@@ -27,7 +31,7 @@ config = {"MQTT_BROKER_ADDR": "localhost",
           "TLS_INSECURE": "false",
           "MODEL_PATH": "./models/decision_model.joblib",          # trained decision model (joblib), must expose .predict()
           "NORMALIZATION_PATH": "./models/normalization.joblib",   # normalization fitted on the training data, see normalize_features()
-          "SLEEP_TIME": 20,
+          "SLEEP_TIME": 300,
           "SLEEP_TIME_SD": 1,
           "PING_SLEEP_TIME": 60,
           "PING_SLEEP_TIME_SD": 1,
@@ -37,7 +41,23 @@ config = {"MQTT_BROKER_ADDR": "localhost",
           "INACTIVE_TIME_SD": 0,
           "NTP_SERVER": "localhost",
           "NTP_SLEEP_TIME": 60,
-          "NTP_SLEEP_TIME_SD": 0}
+          "NTP_SLEEP_TIME_SD": 0,
+
+          # --- CoAP ---
+          # Example: "192.168.10.1-192.168.10.50;192.168.20.2". Empty = CoAP threads disabled.
+          "COAP_ADDR_LIST": "192.168.17.10",
+          "PSK": "",    # non-empty = use coaps with the key read from PSK_FILE
+          "SLEEP_TIME_COAP": 300,
+          "SLEEP_TIME_SD_COAP": 10,
+          "PING_SLEEP_TIME_COAP": 600,
+          "PING_SLEEP_TIME_SD_COAP": 10,
+          "ACTIVE_TIME_COAP": 60,
+          "ACTIVE_TIME_COAP_SD": 0,
+          "INACTIVE_TIME_COAP": 0,
+          "INACTIVE_TIME_COAP_SD": 0,
+          }
+
+PSK_FILE = "/opt/psk.txt"
 
 
 def readloop(file, openfunc=open, skipfirst=True):
@@ -66,9 +86,8 @@ def as_json(payload):
 # for the MQTT publish of that particular reading, out of the groups already
 # listed in config["TLS"]'s comment.
 #
-# ASSUMPTION: the model's predict() returns 1/2/3. If it was trained to
-# output the raw NIST PQC categories (1/3/5) or 0-indexed classes (0/1/2),
 # change the keys below to match.
+
 NIST_LEVEL_TO_TLS_GROUP = {
     0: "x25519",           # classical only     - lowest overhead / lowest security
     1: "mlkem768",          # pure PQC           - NIST category 3 equivalent
@@ -156,6 +175,19 @@ def classify_security_level(data_line, model, normalizer):
     return int(prediction)
 
 
+def iprange(start_addr: str, end_addr: str = None) -> List[ipaddress.IPv4Address]:
+    """Return a list of IPv4 addresses between two addresses, or itself if end_addr is None."""
+    if not end_addr:
+        return [ipaddress.IPv4Address(start_addr)]
+    start = int(ipaddress.IPv4Address(start_addr))
+    end = int(ipaddress.IPv4Address(end_addr))
+    assert start <= end
+    addresses = []
+    for i in range(start, end+1):
+        addresses.append(ipaddress.IPv4Address(i))
+    return addresses
+
+
 def signal_handler(signum, stackframe, event):
     """Set the event flag to signal all threads to terminate."""
     print(f"Handling signal {signum}")
@@ -170,6 +202,34 @@ def ping(bin_path, destination, attempts=3, wait=10):
             return result.returncode == 0
         time.sleep(wait)
     return result.returncode == 0
+
+
+def coap_ping(sleep_t, sleep_t_sd, die_event, client_list, coap_bin):
+    """Periodically send a coap '.well-known/core' request to a list of clients (coap servers)."""
+    while not die_event.is_set():
+        for client in client_list:
+            resource = f"coap://{client}/.well-known/core"
+            cmd = f"{coap_bin} -m GET {resource}"
+            print(f"[  core   ] .well-known/core for {client}... ", end="")
+
+            try:
+                cmd_result = subprocess.run(shlex.split(cmd), capture_output=True, timeout=10, check=True)
+                allok = True
+            except subprocess.CalledProcessError:
+                print("...ERROR!")
+                allok = False
+            except subprocess.TimeoutExpired:
+                print("...TIMEOUT!")
+                allok = False
+
+            if allok:
+                print("...OK.")
+
+        sleep_time = random.gauss(sleep_t, sleep_t_sd)
+        sleep_time = sleep_t if sleep_time < 0 else sleep_time
+        print(f"[  core   ] sleeping for {sleep_time}s")
+        die_event.wait(timeout=sleep_time)
+    print("[  core   ] killing thread")
 
 
 def broker_ping(sleep_t, sleep_t_sd, die_event, broker_addr, ping_bin):
@@ -312,6 +372,8 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
         print(f"[telemetry] error opening `{dataset_fname}'")
         print(e)
         die_event.set()
+        print("[telemetry] killing thread")
+        return
 
     data_iter = readloop(dataset_fname, lzma.open)
     print(f"[telemetry] opened `{dataset_fname}'")
@@ -355,18 +417,6 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
             # publish multiple messages to the broker and disconnect cleanly.
             try:
                 if mqtt_tls:
-                    # A fresh SSLContext per publish, with the TLS 1.3
-                    # key-exchange group pinned to this reading's selected
-                    # group via tls_groups.set_groups() (backport of
-                    # CPython 3.14's SSLContext.set_groups(), i.e.
-                    # SSL_CTX_set1_groups_list -- see tls_groups.py).
-                    # `ciphers=` only affects pre-1.3 cipher suites, not
-                    # the key-exchange group, and set_ecdh_curve() rejects
-                    # PQC/hybrid group names outright -- neither can do
-                    # this. publish.multiple() accepts a pre-built
-                    # SSLContext directly (processed via
-                    # client.tls_set_context()) in place of the ca_certs/
-                    # ciphers/insecure dict form.
                     tls_kwarg = build_tls_context(mqtt_cacert, current_tls_group, mqtt_tls_insecure)
                 else:
                     tls_kwarg = None
@@ -388,9 +438,82 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
     print("[telemetry] killing thread")
 
 
+def telemetry_coap(sleep_t, sleep_t_sd, event, die_event, client_list, coap_bin, psk):
+    """Periodically send a series of coap requests to a list of clients (coap servers)."""
+    print("[requests ] starting thread")
+
+    if psk:
+        coap_scheme = "coaps"
+        coap_identity = f"-k {psk} -u {socket.gethostname()}"
+    else:
+        coap_scheme = "coap"
+        coap_identity = ""
+
+    while not die_event.is_set():
+        if event.is_set():
+            for client in client_list:
+                rcv_payload = {}
+                resource_list = ["ambient_temperature", "exhaust_vacuum", "ambient_pressure",
+                                 "relative_humidity", "energy_output"]
+                for resource in resource_list:
+                    uri = f"{coap_scheme}://{client}/{resource}"
+                    cmd = f"{coap_bin} {coap_identity} -m GET {uri}"
+                    print(f"[requests ] requesting resource `{uri}'...", end="")
+
+                    try:
+                        cmd_result = subprocess.run(shlex.split(cmd), capture_output=True, timeout=10, check=True)
+                        allok = True
+                    except subprocess.CalledProcessError:
+                        print("...ERROR!")
+                        allok = False
+                        die_event.set()
+                    except subprocess.TimeoutExpired:
+                        print("...TIMEOUT!")
+                        allok = False
+
+                    if allok:
+                        cmd_stdout = cmd_result.stdout.decode("utf-8").strip()
+                        cmd_stderr = cmd_result.stderr.decode("utf-8").strip()
+                        if cmd_stdout:
+                            print("...OK.")
+                            rcv_payload[resource] = cmd_stdout
+                        else:
+                            print(f"...{cmd_stderr}")
+
+                    die_event.wait(timeout=max(0, random.gauss(0.5, 0.2)))
+
+                print(f"[requests ] received payload from {client} = {rcv_payload}")
+
+            sleep_time = random.gauss(sleep_t, sleep_t_sd)
+            sleep_time = sleep_t if sleep_time < 0 else sleep_time
+            print(f"[requests ] sleeping for {sleep_time}s")
+            die_event.wait(timeout=sleep_time)
+        else:
+            print("[requests ] ZzZZzzZ sleeping... ZZzZzzZ")
+            event.wait(timeout=1)
+    print("[requests ] killing thread")
+
+
+def activity_scheduler(tag, event, die_event, active_t, active_t_sd, inactive_t, inactive_t_sd):
+    """Toggle `event` ON for ~active_t seconds and OFF for ~inactive_t seconds, until die_event is set.
+
+    MQTT and CoAP each get their own event + scheduler, so their ON/OFF
+    cycles (ACTIVE_TIME* / INACTIVE_TIME*) are independent.
+    """
+    while not die_event.is_set():
+        event.set()
+        print(f"[{tag}] telemetry ON")
+        die_event.wait(timeout=max(0, random.gauss(active_t, active_t_sd)))
+        if inactive_t > 0 and not die_event.is_set():
+            event.clear()
+            print(f"[{tag}] telemetry OFF")
+            die_event.wait(timeout=max(0, random.gauss(inactive_t, inactive_t_sd)))
+
+
 def main(conf):
     """Manages the other threads."""
-    event = threading.Event()
+    event = threading.Event()        # MQTT telemetry ON/OFF
+    event_coap = threading.Event()   # CoAP telemetry ON/OFF
     die_event = threading.Event()
     signal.signal(signal.SIGTERM, lambda a,b:signal_handler(a, b, die_event))
 
@@ -404,33 +527,40 @@ def main(conf):
                                               conf["decision_model"], conf["normalizer"]),
                                         kwargs={})
     broker_ping_thread = threading.Thread(target=broker_ping,
-                                            name="broker_ping",
-                                            args=(conf["PING_SLEEP_TIME"], conf["PING_SLEEP_TIME_SD"], die_event, conf["MQTT_BROKER_ADDR"], conf["ping_bin"]),
-                                            kwargs={},
-                                            daemon=False)
+                                          name="broker_ping",
+                                          args=(conf["PING_SLEEP_TIME"], conf["PING_SLEEP_TIME_SD"], die_event, conf["MQTT_BROKER_ADDR"], conf["ping_bin"]),
+                                          kwargs={},
+                                          daemon=False)
     ntp_client_thread = threading.Thread(target=ntp_client,
                                          name="ntp_client",
                                          args=(conf["NTP_SLEEP_TIME"], conf["NTP_SLEEP_TIME_SD"], die_event, conf["NTP_SERVER"], conf["ntp_bin"]),
                                          kwargs={},
                                          daemon=False)
+    telemetry_coap_thread = threading.Thread(target=telemetry_coap,
+                                                 name="telemetry",
+                                                 args=(conf["SLEEP_TIME_COAP"], conf["SLEEP_TIME_SD_COAP"], event, die_event, conf["COAP_ADDR_LIST"], conf["coap_bin"], conf["PSK"]),
+                                                 kwargs={})
+    coap_ping_thread = threading.Thread(target=coap_ping,
+                                   name="coap ping",
+                                   args=(conf["PING_SLEEP_TIME_COAP"], conf["PING_SLEEP_TIME_SD_COAP"], die_event, conf["COAP_ADDR_LIST"], conf["coap_bin"]),
+                                   kwargs={}, daemon=False)
 
     die_event.clear()
     broker_ping_thread.start()
+    coap_ping_thread.start()
     telemetry_thread.start()
+    telemetry_coap_thread.start()
+
     if conf["ntp_bin"]:
         ntp_client_thread.start()
     die_event.wait(timeout=5)
 
     print("[  main   ] starting loop")
 
-    while not die_event.is_set():
-        event.set()
-        print("[  main   ] telemetry ON")
-        die_event.wait(timeout=max(0, random.gauss(conf["ACTIVE_TIME"], conf["ACTIVE_TIME_SD"])))
-        if conf["INACTIVE_TIME"] > 0:
-            event.clear()
-            print("[  main   ] telemetry OFF")
-            die_event.wait(timeout=max(0, random.gauss(conf["INACTIVE_TIME"], conf["INACTIVE_TIME_SD"])))
+    # MQTT ON/OFF cycle runs in the main thread
+    activity_scheduler("  main   ] [mqtt", event, die_event,
+                       conf["ACTIVE_TIME"], conf["ACTIVE_TIME_SD"],
+                       conf["INACTIVE_TIME"], conf["INACTIVE_TIME_SD"])
 
     print("[  main   ] exit")
 
@@ -443,7 +573,8 @@ if __name__ == "__main__":
             pass
 
     config["MQTT_QOS"] = int(config["MQTT_QOS"])
-    for c in ("SLEEP_TIME", "SLEEP_TIME_SD", "PING_SLEEP_TIME", "PING_SLEEP_TIME_SD", "ACTIVE_TIME", "ACTIVE_TIME_SD", "INACTIVE_TIME", "INACTIVE_TIME_SD", "NTP_SLEEP_TIME", "NTP_SLEEP_TIME_SD"):
+    for c in ("SLEEP_TIME", "SLEEP_TIME_SD", "PING_SLEEP_TIME", "PING_SLEEP_TIME_SD", "ACTIVE_TIME", "ACTIVE_TIME_SD", "INACTIVE_TIME", "INACTIVE_TIME_SD", "NTP_SLEEP_TIME", "NTP_SLEEP_TIME_SD",
+              "SLEEP_TIME_COAP", "SLEEP_TIME_SD_COAP", "PING_SLEEP_TIME_COAP", "PING_SLEEP_TIME_SD_COAP", "ACTIVE_TIME_COAP", "ACTIVE_TIME_COAP_SD", "INACTIVE_TIME_COAP", "INACTIVE_TIME_COAP_SD"):
         config[c] = float(config[c])
 
     config["MQTT_TOPIC_PUB"] = f"{config['MQTT_TOPIC_PUB']}/id-{socket.gethostname()}"
@@ -497,5 +628,44 @@ if __name__ == "__main__":
         config["tls_insecure"] = None
 
     print(f"[  setup  ] TLS enabled: {config['TLS']}, ca cert: {config['ca_cert_file']}, TLS insecure: {config['tls_insecure']}")
+
+    # --- CoAP setup ---------------------------------------------------------
+    # Empty COAP_ADDR_LIST => CoAP threads disabled, MQTT keeps running.
+    config["coap_enabled"] = bool(config["COAP_ADDR_LIST"].strip())
+    config["coap_bin"] = None
+
+    if not config["coap_enabled"]:
+        print("[  setup  ] COAP_ADDR_LIST is empty. CoAP threads disabled.")
+        config["COAP_ADDR_LIST"] = []
+        config["PSK"] = None
+    else:
+        address_list = []
+        # config["COAP_ADDR_LIST"] example: "192.168.10.1-192.168.10.50;192.168.20.2"
+        for ip_range in list(map(str.strip, config["COAP_ADDR_LIST"].split(";"))):
+            if ip_range:
+                address_list.extend(iprange(*list(map(str.strip, ip_range.split("-")))))
+        config["COAP_ADDR_LIST"] = address_list
+
+        config["coap_bin"] = shutil.which("coap-client", path=os.environ.get("PATH", "") + ":/opt")
+        if not config["coap_bin"]:
+            sys.exit("[  setup  ] No 'coap-client' binary found. Exiting.")
+
+        for ip_addr in config["COAP_ADDR_LIST"]:
+            print(f"[  setup  ] pinging {ip_addr}")
+            if not ping(config["ping_bin"], str(ip_addr), attempts=3, wait=10):
+                sys.exit(f"[  setup  ] {ip_addr} is down")
+
+        if config["PSK"]:
+            print("[  setup  ] With pre-shared key")
+            try:
+                with open(PSK_FILE, "r") as f:
+                    config["PSK"] = f.read().strip()
+            except FileNotFoundError:
+                print(f"[  setup  ] Error opening {PSK_FILE}")
+                config["PSK"] = None
+            print(f"[  setup  ] Pre-shared key is: `{config['PSK']}'")
+        else:
+            print("[  setup  ] NO pre-shared key")
+            config["PSK"] = None
 
     main(config)
