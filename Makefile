@@ -14,8 +14,8 @@ include $(CONFIG_FILE)
 
 all: buildstatus/DNS buildstatus/certificates buildstatus/NTP \
      buildstatus/mqtt_broker_tls \
-     buildstatus/building_monitor buildstatus/ip_camera_street \
-     buildstatus/ip_camera_museum buildstatus/stream_server buildstatus/stream_consumer \
+     buildstatus/building_monitor \
+	 buildstatus/sensor \
      buildstatus/debug_client
 
 templates: Dockerfiles/certificates/Dockerfile Dockerfiles/DNS/dnsmasq.conf
@@ -53,20 +53,8 @@ buildstatus/building_monitor: Dockerfiles/iot/building_monitor/Dockerfile Docker
 	$(BUILD_CMD) --file $< --tag iotsim/building-monitor Dockerfiles/iot/building_monitor
 	@touch $@
 
-buildstatus/ip_camera_street: Dockerfiles/iot/ip_camera/Dockerfile.720_15fps_noaudio Dockerfiles/iot/ip_camera/street_london_rainy_night.mp4 Dockerfiles/iot/ip_camera/ip_camera.py
-	$(BUILD_CMD) --file $< --tag iotsim/ip-camera-street Dockerfiles/iot/ip_camera
-	@touch $@
-
-buildstatus/ip_camera_museum: Dockerfiles/iot/ip_camera/Dockerfile.720_grayscale_25fps_noaudio Dockerfiles/iot/ip_camera/museum_lebanon.mp4 Dockerfiles/iot/ip_camera/ip_camera.py
-	$(BUILD_CMD) --file $< --tag iotsim/ip-camera-museum Dockerfiles/iot/ip_camera
-	@touch $@	
-
-buildstatus/stream_server: Dockerfiles/iot/stream_server/Dockerfile Dockerfiles/iot/stream_server/rtsp-simple-server.yml
-	$(BUILD_CMD) --file $< --tag iotsim/stream-server Dockerfiles/iot/stream_server
-	@touch $@
-
-buildstatus/stream_consumer: Dockerfiles/iot/stream_consumer/Dockerfile Dockerfiles/iot/stream_consumer/consume.py
-	$(BUILD_CMD) --file $< --tag iotsim/stream-consumer Dockerfiles/iot/stream_consumer
+buildstatus/sensor: Dockerfiles/iot/sensor/Dockerfile Dockerfiles/iot/sensor/coap-client-mod.c Dockerfiles/iot/sensor/sensor.py buildstatus/certificates
+	$(BUILD_CMD) --file $< --tag iotsim/sensor Dockerfiles/iot/sensor
 	@touch $@
 
 buildstatus/debug_client: Dockerfiles/iot/debug_client/Dockerfile

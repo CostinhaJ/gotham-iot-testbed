@@ -55,14 +55,8 @@ mqtt_broker_tls_template_id = get_template_id_from_name(templates, "iotsim-mqtt-
 assert mqtt_broker_tls_template_id
 building_monitor_template_id = get_template_id_from_name(templates, "iotsim-building-monitor")
 assert building_monitor_template_id
-ip_camera_street_template_id = get_template_id_from_name(templates, "iotsim-ip-camera-street")
-assert ip_camera_street_template_id
-ip_camera_museum_template_id = get_template_id_from_name(templates, "iotsim-ip-camera-museum")
-assert ip_camera_museum_template_id
-stream_server_template_id = get_template_id_from_name(templates, "iotsim-stream-server")
-assert stream_server_template_id
-stream_consumer_template_id = get_template_id_from_name(templates, "iotsim-stream-consumer")
-assert stream_consumer_template_id
+sensor_template_id = get_template_id_from_name(templates, "iotsim-sensor")
+assert sensor_template_id
 debug_client_template_id = get_template_id_from_name(templates, "iotsim-debug-client")
 assert debug_client_template_id
 
@@ -217,79 +211,24 @@ home_plain = create_node(server, project, coords_west_zone[0].x - project.grid_u
 create_link(server, project, szone["node_id"], 2, home_plain["node_id"], 0)
 set_node_network_interfaces(server, project, home_plain["node_id"], "eth0",  ipaddress.IPv4Interface("192.168.17.10/24"), "192.168.17.1", lab_nameserver)
 
-# Ligação ao broker MQTT cloud TLSs
+# Ligação ao Edge ao broker MQTT
 env = environment_string_to_dict(get_docker_node_environment(server, project, home_plain["node_id"]))
 env["MQTT_BROKER_ADDR"] = MQTT_CLOUD_TLS_NAME[0]
-#env["MQTT_AUTH"] = "admin:adminpass"
-#env["MQTT_AUTH"] = "production:passw0rd"
 env["TLS"] = "True"
 env["NTP_SERVER"] = NTP_CLOUD_NAME[0]
 update_docker_node_environment(server, project, home_plain["node_id"], environment_dict_to_string(env))
 
-
-#-----------------------------------------------------------------------------------------------------
-
-
-################
-#  SMART_HOME  #  -> Nodes Servidores cloud estão ligadas ao router north 
-################
-
-#Nomes e IPs dos serviços do smart home
-
-# broker local, na propria LAN da casa (192.168.17.0/24)
-#HOME_BROKER_PLAIN_NAME = (f"broker.home.{sim_config['LOCAL_DOMAIN']}", "192.168.17.2")
-#HOME_STREAMSERVER_NAME = (f"ipcam.home.{sim_config['LOCAL_DOMAIN']}", "192.168.2.2")
-
-
-##############
-# SERVIDORES #
-##############
-
-# Servidor MQTT (LAN da casa: 192.168.17.0/24, gateway rzone 192.168.17.1)
-#home_mqtt_plain = create_node(server, project, coords_west_zone[0].x + project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 2, mqtt_broker_1_6_template_id)
-#create_link(server, project, szone["node_id"], 1, home_mqtt_plain["node_id"], 0)
-#set_node_network_interfaces(server, project, home_mqtt_plain["node_id"], "eth0", ipaddress.IPv4Interface(f"{HOME_BROKER_PLAIN_NAME[1]}/24"), "192.168.17.1", lab_nameserver)
-#
-## Cliente MQTT (mesma LAN)
-#home_plain = create_node(server, project, coords_west_zone[0].x - project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 2, building_monitor_template_id)
-#create_link(server, project, szone["node_id"], 2, home_plain["node_id"], 0)
-#set_node_network_interfaces(server, project, home_plain["node_id"], "eth0",  ipaddress.IPv4Interface("192.168.17.10/24"), "192.168.17.1", lab_nameserver)
-#
-## Ligação ao broker MQTT cloud TLSs
-#
-#env = environment_string_to_dict(get_docker_node_environment(server, project, home_plain["node_id"]))
-#env["MQTT_BROKER_ADDR"] = HOME_BROKER_PLAIN_NAME[0]
-#env["NTP_SERVER"] = NTP_CLOUD_NAME[0]
-#update_docker_node_environment(server, project, home_plain["node_id"], environment_dict_to_string(env))
-
-
-###############
-# IoT DEVICES #
-###############
-
-# Servidor stream camera frente
-#home_front_stream_cloud = create_node(server, project, coord_home_snorth.x - project.grid_unit * 1, coord_home_snorth.y - project.grid_unit * 2, stream_server_template_id)
-#create_link(server, project, home_snorth["node_id"], 2, home_front_stream_cloud["node_id"], 0)
-#set_node_network_interfaces(server, project, home_front_stream_cloud["node_id"], "eth0", ipaddress.IPv4Interface(f"{HOME_STREAMSERVER_NAME[1]}/20"), "192.168.0.1", lab_nameserver)
-
-# HOME FRONT IP camera 
-#home_front_clus_ipcam = create_cluster_of_nodes(server, project, 1, coords_west_zone[1].x + project.grid_unit * 5, coords_west_zone[1].y + project.grid_unit * 2, 2,
-#                                           switch_template_id, ip_camera_street_template_id, switches_west_zone[1]["node_id"], 2,
-#                                           ipaddress.IPv4Interface("192.168.18.15/24"), "192.168.18.1", lab_nameserver, 1.5)
-#for d in home_front_clus_ipcam[1]:
-#    env = environment_string_to_dict(get_docker_node_environment(server, project, d["node_id"]))
-#    env["STREAM_SERVER_ADDR"] = HOME_STREAMSERVER_NAME[0]
-#    env["STREAM_NAME"] = d["name"]
-#    update_docker_node_environment(server, project, d["node_id"], environment_dict_to_string(env))
-
-
+sensor_client = create_node(server, project, coords_west_zone[0].x - project.grid_unit * 1, coords_west_zone[0].y + project.grid_unit * 4, sensor_template_id)
+create_link(server, project, szone["node_id"], 3, sensor_client["node_id"], 0)
+set_node_network_interfaces(server, project, sensor_client["node_id"], "eth0",  ipaddress.IPv4Interface("192.168.17.11/24"), "192.168.17.1", lab_nameserver)
+env = environment_string_to_dict(get_docker_node_environment(server, project, sensor_client["node_id"]))
+env["COAP_ADDR_LIST"] = "192.168.17.11"
+env["PSK"] = "True"
+update_docker_node_environment(server, project, sensor_client["node_id"], environment_dict_to_string(env))
 
 #-----------------------------------------------------------------------------------------------------
   
 
-# NOTA: HOME_STREAMSERVER_NAME nao esta aqui porque nao existe nenhum no de
-# stream server nesta topologia. Adicionar de novo quando o bloco das cameras
-# for descomentado.
 EXTRA_HOSTS = {NTP_CLOUD_NAME[0]: NTP_CLOUD_NAME[1],
                HOME_BROKER_PLAIN_NAME[0]: HOME_BROKER_PLAIN_NAME[1],
                MQTT_CLOUD_TLS_NAME[0]: MQTT_CLOUD_TLS_NAME[1]
