@@ -1,0 +1,17 @@
+Quero modificar os dados enviados de
+"Fold1_pp.csv"
+ ----Exemplo----
+AT;V;AP;RH;PE
+14,96;41,76;1024,07;73,17;463,26
+para
+"energydata_complete.csv" - Nome do ficheiro
+ ----Exemplo----
+date,Appliances,lights,T1,RH_1,T2,RH_2,T3,RH_3,T4,RH_4,T5,RH_5,T6,RH_6,T7,RH_7,T8,RH_8,T9,RH_9,T_out,Press_mm_hg,RH_out,Windspeed,Visibility,Tdewpoint,rv1,rv2
+2016-01-11 17:00:00,60,30,19.890,47.597,19.200,44.790,19.790,44.730,19.000,45.567,17.167,55.200,7.027,84.257,17.200,41.627,18.200,48.900,17.033,45.530,6.600,733.500,92.000,7.000,63.000,5.300,13.275,13.275
+
+Apenas é necessário alterar as linhas 
+72 a 82, definição de vars e separador de colunas 
+246 a 372 var pointers
+1944 a 1968 init de recursos
+2882 a 2922 abrir dataset
+3044 a 3058 fechar dataset

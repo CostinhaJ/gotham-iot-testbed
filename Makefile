@@ -15,7 +15,7 @@ include $(CONFIG_FILE)
 all: buildstatus/DNS buildstatus/certificates buildstatus/NTP \
      buildstatus/mqtt_broker_tls \
      buildstatus/building_monitor \
-	 buildstatus/sensor \
+	 buildstatus/sensor buildstatus/sensor_tls \
      buildstatus/debug_client
 
 templates: Dockerfiles/certificates/Dockerfile Dockerfiles/DNS/dnsmasq.conf
@@ -53,9 +53,13 @@ buildstatus/building_monitor: Dockerfiles/iot/building_monitor/Dockerfile Docker
 	$(BUILD_CMD) --file $< --tag iotsim/building-monitor Dockerfiles/iot/building_monitor
 	@touch $@
 
-buildstatus/sensor: Dockerfiles/iot/sensor/Dockerfile Dockerfiles/iot/sensor/coap-client-mod.c Dockerfiles/iot/sensor/sensor.py buildstatus/certificates
+buildstatus/sensor: Dockerfiles/iot/sensor/Dockerfile Dockerfiles/iot/sensor/coap-server-mod.c Dockerfiles/iot/sensor/combined_cycle_power_plant/Fold1_pp.csv.xz
 	$(BUILD_CMD) --file $< --tag iotsim/sensor Dockerfiles/iot/sensor
 	@touch $@
+
+buildstatus/sensor_tls:  Dockerfiles/iot/sensor/Dockerfile.tls buildstatus/certificates buildstatus/sensor
+	$(BUILD_CMD) --file $< --tag iotsim/sensor-tls Dockerfiles/iot/sensor
+	@touch $@	
 
 buildstatus/debug_client: Dockerfiles/iot/debug_client/Dockerfile
 	$(BUILD_CMD) --file $< --tag iotsim/debug-client Dockerfiles/iot/debug_client
