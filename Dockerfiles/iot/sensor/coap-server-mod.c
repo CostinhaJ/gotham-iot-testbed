@@ -1,10 +1,5 @@
 /* -*- Mode: C; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 
-/* Updated to simulate IoT device reporting data collected from a Combined Cycle Power Plant
- * based on the https://archive.ics.uci.edu/ml/datasets/combined+cycle+power+plant
- * dataset.
- */
-
 /* coap -- simple implementation of the Constrained Application Protocol (CoAP)
  *         as defined in RFC 7252
  *
@@ -70,17 +65,43 @@ static char* strndup(const char* s1, size_t n)
 #endif
 
 /* constants for the IoT dataset */
-#define DATASETFNAME "Fold1_pp.csv"
-#define DATASETBUFFSIZE 50
-#define DATASETCOLSIZE 30
-#define FIELDSEPARATOR ";"
-#define DECIMALSEPARATOR ","
-/* dataset columns */
-#define AMBIENTTEMP 1
-#define EXHAUSTVACC 2
-#define AMBIENTPRES 3
-#define RELHUMIDITY 4
-#define ENERGYOUTPUT 5
+#define DATASETFNAME "energydata_complete.csv"
+#define DATASETBUFFSIZE 1024
+#define DATASETCOLSIZE 64
+#define FIELDSEPARATOR ","
+#define DECIMALSEPARATOR "."
+#define DATASET_HAS_HEADER 1
+
+/* Dataset columns */
+#define DATE         1
+#define APPLIANCES   2
+#define LIGHTS       3
+#define T1           4
+#define RH_1         5
+#define T2           6
+#define RH_2         7
+#define T3           8
+#define RH_3         9
+#define T4          10
+#define RH_4         11
+#define T5          12
+#define RH_5         13
+#define T6          14
+#define RH_6         15
+#define T7          16
+#define RH_7         17
+#define T8          18
+#define RH_8         19
+#define T9          20
+#define RH_9        21
+#define T_OUT       22
+#define PRESS_MM_HG 23
+#define RH_OUT      24
+#define WINDSPEED   25
+#define VISIBILITY  26
+#define TDEWPOINT   27
+#define RV1         28
+#define RV2         29
 
 /* temporary storage for dynamic resource representations */
 static int quit = 0;
@@ -243,9 +264,10 @@ reference_resource_data(transient_value_t *entry) {
   return body;
 }
 
-#define INDEX "----------------------Combined Cycle Power Plant----------------------\n" \
+#define INDEX "----------------------Appliences Energy----------------------\n" \
               "This is a test server made with libcoap (see https://libcoap.net)\n" \
               "Copyright (C) 2010--2021 Olaf Bergmann <bergmann@tzi.org> and others\n\n"
+
 
 
 void dataset_read(char *col_data, FILE *ifp, char *delim, int col_num) {
@@ -278,17 +300,17 @@ void dataset_read(char *col_data, FILE *ifp, char *delim, int col_num) {
 
 }
 
-/* handle dataset Ambient Temperature column */
-FILE *fp_ambienttemp;
+/* handle dataset date column */
+FILE *fp_date;
 
 static void
-hnd_get_ambienttemp(coap_resource_t *resource,
-                    coap_session_t *session,
-                    const coap_pdu_t *request,
-                    const coap_string_t *query,
-                    coap_pdu_t *response) {
+hnd_get_date(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
   char response_data[DATASETCOLSIZE];
-  dataset_read(response_data, fp_ambienttemp, FIELDSEPARATOR, AMBIENTTEMP);
+  dataset_read(response_data, fp_date, FIELDSEPARATOR, DATE);
   coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
   coap_add_data_large_response(resource, session, request, response,
                                query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
@@ -296,17 +318,17 @@ hnd_get_ambienttemp(coap_resource_t *resource,
                                response_data, NULL, NULL);
 }
 
-/* handle dataset Exhaust Vacuum column */
-FILE *fp_exhaustvacc;
+/* handle dataset Appliances column */
+FILE *fp_appliances;
 
 static void
-hnd_get_exhaustvacc(coap_resource_t *resource,
-                    coap_session_t *session,
-                    const coap_pdu_t *request,
-                    const coap_string_t *query,
-                    coap_pdu_t *response) {
+hnd_get_appliances(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
   char response_data[DATASETCOLSIZE];
-  dataset_read(response_data, fp_exhaustvacc, FIELDSEPARATOR, EXHAUSTVACC);
+  dataset_read(response_data, fp_appliances, FIELDSEPARATOR, APPLIANCES);
   coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
   coap_add_data_large_response(resource, session, request, response,
                                query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
@@ -314,17 +336,17 @@ hnd_get_exhaustvacc(coap_resource_t *resource,
                                response_data, NULL, NULL);
 }
 
-/* handle dataset Ambient Pressure column */
-FILE *fp_ambientpres;
+/* handle dataset lights column */
+FILE *fp_lights;
 
 static void
-hnd_get_ambientpress(coap_resource_t *resource,
-                     coap_session_t *session,
-                     const coap_pdu_t *request,
-                     const coap_string_t *query,
-                     coap_pdu_t *response) {
+hnd_get_lights(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
   char response_data[DATASETCOLSIZE];
-  dataset_read(response_data, fp_ambientpres, FIELDSEPARATOR, AMBIENTPRES);
+  dataset_read(response_data, fp_lights, FIELDSEPARATOR, LIGHTS);
   coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
   coap_add_data_large_response(resource, session, request, response,
                                query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
@@ -332,17 +354,17 @@ hnd_get_ambientpress(coap_resource_t *resource,
                                response_data, NULL, NULL);
 }
 
-/* handle dataset Relative Humidity column */
-FILE *fp_relhumidity;
+/* handle dataset T1 column */
+FILE *fp_t1;
 
 static void
-hnd_get_relhumidity(coap_resource_t *resource,
-                    coap_session_t *session,
-                    const coap_pdu_t *request,
-                    const coap_string_t *query,
-                    coap_pdu_t *response) {
+hnd_get_t1(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
   char response_data[DATASETCOLSIZE];
-  dataset_read(response_data, fp_relhumidity, FIELDSEPARATOR, RELHUMIDITY);
+  dataset_read(response_data, fp_t1, FIELDSEPARATOR, T1);
   coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
   coap_add_data_large_response(resource, session, request, response,
                                query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
@@ -350,18 +372,449 @@ hnd_get_relhumidity(coap_resource_t *resource,
                                response_data, NULL, NULL);
 }
 
-
-/* handle dataset Net hourly electrical energy output column */
-FILE *fp_energyoutput;
+/* handle dataset RH_1 column */
+FILE *fp_rh_1;
 
 static void
-hnd_get_energyoutput(coap_resource_t *resource,
-                     coap_session_t *session,
-                     const coap_pdu_t *request,
-                     const coap_string_t *query,
-                     coap_pdu_t *response) {
+hnd_get_rh_1(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
   char response_data[DATASETCOLSIZE];
-  dataset_read(response_data, fp_energyoutput, FIELDSEPARATOR, ENERGYOUTPUT);
+  dataset_read(response_data, fp_rh_1, FIELDSEPARATOR, RH_1);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T2 column */
+FILE *fp_t2;
+
+static void
+hnd_get_t2(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t2, FIELDSEPARATOR, T2);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_2 column */
+FILE *fp_rh_2;
+
+static void
+hnd_get_rh_2(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_2, FIELDSEPARATOR, RH_2);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T3 column */
+FILE *fp_t3;
+
+static void
+hnd_get_t3(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t3, FIELDSEPARATOR, T3);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_3 column */
+FILE *fp_rh_3;
+
+static void
+hnd_get_rh_3(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_3, FIELDSEPARATOR, RH_3);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T4 column */
+FILE *fp_t4;
+
+static void
+hnd_get_t4(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t4, FIELDSEPARATOR, T4);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_4 column */
+FILE *fp_rh_4;
+
+static void
+hnd_get_rh_4(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_4, FIELDSEPARATOR, RH_4);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T5 column */
+FILE *fp_t5;
+
+static void
+hnd_get_t5(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t5, FIELDSEPARATOR, T5);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_5 column */
+FILE *fp_rh_5;
+
+static void
+hnd_get_rh_5(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_5, FIELDSEPARATOR, RH_5);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T6 column */
+FILE *fp_t6;
+
+static void
+hnd_get_t6(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t6, FIELDSEPARATOR, T6);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_6 column */
+FILE *fp_rh_6;
+
+static void
+hnd_get_rh_6(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_6, FIELDSEPARATOR, RH_6);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T7 column */
+FILE *fp_t7;
+
+static void
+hnd_get_t7(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t7, FIELDSEPARATOR, T7);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_7 column */
+FILE *fp_rh_7;
+
+static void
+hnd_get_rh_7(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_7, FIELDSEPARATOR, RH_7);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T8 column */
+FILE *fp_t8;
+
+static void
+hnd_get_t8(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t8, FIELDSEPARATOR, T8);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_8 column */
+FILE *fp_rh_8;
+
+static void
+hnd_get_rh_8(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_8, FIELDSEPARATOR, RH_8);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T9 column */
+FILE *fp_t9;
+
+static void
+hnd_get_t9(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t9, FIELDSEPARATOR, T9);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_9 column */
+FILE *fp_rh_9;
+
+static void
+hnd_get_rh_9(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_9, FIELDSEPARATOR, RH_9);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset T_out column */
+FILE *fp_t_out;
+
+static void
+hnd_get_t_out(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_t_out, FIELDSEPARATOR, T_OUT);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset Press_mm_hg column */
+FILE *fp_press_mm_hg;
+
+static void
+hnd_get_press_mm_hg(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_press_mm_hg, FIELDSEPARATOR, PRESS_MM_HG);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset RH_out column */
+FILE *fp_rh_out;
+
+static void
+hnd_get_rh_out(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rh_out, FIELDSEPARATOR, RH_OUT);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset Windspeed column */
+FILE *fp_windspeed;
+
+static void
+hnd_get_windspeed(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_windspeed, FIELDSEPARATOR, WINDSPEED);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset Visibility column */
+FILE *fp_visibility;
+
+static void
+hnd_get_visibility(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_visibility, FIELDSEPARATOR, VISIBILITY);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset Tdewpoint column */
+FILE *fp_tdewpoint;
+
+static void
+hnd_get_tdewpoint(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_tdewpoint, FIELDSEPARATOR, TDEWPOINT);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset rv1 column */
+FILE *fp_rv1;
+
+static void
+hnd_get_rv1(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rv1, FIELDSEPARATOR, RV1);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset rv2 column */
+FILE *fp_rv2;
+
+static void
+hnd_get_rv2(coap_resource_t *resource,
+          coap_session_t *session,
+          const coap_pdu_t *request,
+          const coap_string_t *query,
+          coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_rv2, FIELDSEPARATOR, RV2);
   coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
   coap_add_data_large_response(resource, session, request, response,
                                query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
@@ -1942,30 +2395,151 @@ init_resources(coap_context_t *ctx) {
   }
 #endif /* SERVER_CAN_PROXY */
 
-  r = coap_resource_init(coap_make_str_const("ambient_temperature"), resource_flags);
-  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_ambienttemp);
-  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Ambient Temperature ºC\""), 0);
+r = coap_resource_init(coap_make_str_const("date"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_date);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"date\""), 0);
   coap_add_resource(ctx, r);
 
-  r = coap_resource_init(coap_make_str_const("exhaust_vacuum"), resource_flags);
-  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_exhaustvacc);
-  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Exhaust Vacuum cm Hg\""), 0);
+  r = coap_resource_init(coap_make_str_const("appliances"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_appliances);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Appliances\""), 0);
   coap_add_resource(ctx, r);
 
-  r = coap_resource_init(coap_make_str_const("ambient_pressure"), resource_flags);
-  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_ambientpress);
-  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Ambient Pressure milibar\""), 0);
+  r = coap_resource_init(coap_make_str_const("lights"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_lights);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"lights\""), 0);
   coap_add_resource(ctx, r);
 
-  r = coap_resource_init(coap_make_str_const("relative_humidity"), resource_flags);
-  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_relhumidity);
-  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Relative Humidity %\""), 0);
+  r = coap_resource_init(coap_make_str_const("t1"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t1);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T1\""), 0);
   coap_add_resource(ctx, r);
 
-  r = coap_resource_init(coap_make_str_const("energy_output"), resource_flags);
-  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_energyoutput);
-  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Net hourly electrical energy output (MW)\""), 0);
+  r = coap_resource_init(coap_make_str_const("rh_1"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_1);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_1\""), 0);
   coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t2"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t2);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T2\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_2"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_2);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_2\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t3"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t3);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T3\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_3"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_3);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_3\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t4"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t4);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T4\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_4"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_4);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_4\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t5"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t5);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T5\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_5"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_5);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_5\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t6"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t6);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T6\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_6"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_6);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_6\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t7"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t7);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T7\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_7"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_7);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_7\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t8"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t8);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T8\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_8"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_8);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_8\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t9"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t9);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T9\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_9"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_9);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_9\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("t_out"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_t_out);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"T_out\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("press_mm_hg"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_press_mm_hg);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Press_mm_hg\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rh_out"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rh_out);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"RH_out\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("windspeed"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_windspeed);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Windspeed\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("visibility"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_visibility);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Visibility\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("tdewpoint"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_tdewpoint);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Tdewpoint\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rv1"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rv1);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"rv1\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("rv2"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_rv2);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"rv2\""), 0);
+  coap_add_resource(ctx, r);
+
 }
 
 static int
@@ -2880,44 +3454,236 @@ main(int argc, char **argv) {
     }
   }
 
-  fp_ambienttemp = fopen(DATASETFNAME, "r");
-  if(fp_ambienttemp == NULL){
-    printf("Can't open dataset (ambienttemp).\n");
+fp_date = fopen(DATASETFNAME, "r");
+  if(fp_date == NULL){
+    printf("Can't open dataset (date).\n");
     return 1;
   } else {
-    printf("Opened dataset (ambienttemp).\n");
+    printf("Opened dataset (date).\n");
   }
 
-  fp_exhaustvacc = fopen(DATASETFNAME, "r");
-  if(fp_exhaustvacc == NULL){
-    printf("Can't open dataset (exhaustvacc).\n");
+  fp_appliances = fopen(DATASETFNAME, "r");
+  if(fp_appliances == NULL){
+    printf("Can't open dataset (appliances).\n");
     return 1;
   } else {
-    printf("Opened dataset (exhaustvacc).\n");
+    printf("Opened dataset (appliances).\n");
   }
 
-  fp_ambientpres = fopen(DATASETFNAME, "r");
-  if(fp_ambientpres == NULL){
-    printf("Can't open dataset (ambientpres).\n");
+  fp_lights = fopen(DATASETFNAME, "r");
+  if(fp_lights == NULL){
+    printf("Can't open dataset (lights).\n");
     return 1;
   } else {
-    printf("Opened dataset (ambientpres).\n");
+    printf("Opened dataset (lights).\n");
   }
 
-  fp_relhumidity = fopen(DATASETFNAME, "r");
-  if(fp_relhumidity == NULL){
-    printf("Can't open dataset (relhumidity).\n");
+  fp_t1 = fopen(DATASETFNAME, "r");
+  if(fp_t1 == NULL){
+    printf("Can't open dataset (t1).\n");
     return 1;
   } else {
-    printf("Opened dataset (relhumidity).\n");
+    printf("Opened dataset (t1).\n");
   }
 
-  fp_energyoutput = fopen(DATASETFNAME, "r");
-  if(fp_energyoutput == NULL){
-    printf("Can't open dataset (energyoutput).\n");
+  fp_rh_1 = fopen(DATASETFNAME, "r");
+  if(fp_rh_1 == NULL){
+    printf("Can't open dataset (rh_1).\n");
     return 1;
   } else {
-    printf("Opened dataset (energyoutput).\n");
+    printf("Opened dataset (rh_1).\n");
+  }
+
+  fp_t2 = fopen(DATASETFNAME, "r");
+  if(fp_t2 == NULL){
+    printf("Can't open dataset (t2).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t2).\n");
+  }
+
+  fp_rh_2 = fopen(DATASETFNAME, "r");
+  if(fp_rh_2 == NULL){
+    printf("Can't open dataset (rh_2).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_2).\n");
+  }
+
+  fp_t3 = fopen(DATASETFNAME, "r");
+  if(fp_t3 == NULL){
+    printf("Can't open dataset (t3).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t3).\n");
+  }
+
+  fp_rh_3 = fopen(DATASETFNAME, "r");
+  if(fp_rh_3 == NULL){
+    printf("Can't open dataset (rh_3).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_3).\n");
+  }
+
+  fp_t4 = fopen(DATASETFNAME, "r");
+  if(fp_t4 == NULL){
+    printf("Can't open dataset (t4).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t4).\n");
+  }
+
+  fp_rh_4 = fopen(DATASETFNAME, "r");
+  if(fp_rh_4 == NULL){
+    printf("Can't open dataset (rh_4).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_4).\n");
+  }
+
+  fp_t5 = fopen(DATASETFNAME, "r");
+  if(fp_t5 == NULL){
+    printf("Can't open dataset (t5).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t5).\n");
+  }
+
+  fp_rh_5 = fopen(DATASETFNAME, "r");
+  if(fp_rh_5 == NULL){
+    printf("Can't open dataset (rh_5).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_5).\n");
+  }
+
+  fp_t6 = fopen(DATASETFNAME, "r");
+  if(fp_t6 == NULL){
+    printf("Can't open dataset (t6).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t6).\n");
+  }
+
+  fp_rh_6 = fopen(DATASETFNAME, "r");
+  if(fp_rh_6 == NULL){
+    printf("Can't open dataset (rh_6).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_6).\n");
+  }
+
+  fp_t7 = fopen(DATASETFNAME, "r");
+  if(fp_t7 == NULL){
+    printf("Can't open dataset (t7).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t7).\n");
+  }
+
+  fp_rh_7 = fopen(DATASETFNAME, "r");
+  if(fp_rh_7 == NULL){
+    printf("Can't open dataset (rh_7).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_7).\n");
+  }
+
+  fp_t8 = fopen(DATASETFNAME, "r");
+  if(fp_t8 == NULL){
+    printf("Can't open dataset (t8).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t8).\n");
+  }
+
+  fp_rh_8 = fopen(DATASETFNAME, "r");
+  if(fp_rh_8 == NULL){
+    printf("Can't open dataset (rh_8).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_8).\n");
+  }
+
+  fp_t9 = fopen(DATASETFNAME, "r");
+  if(fp_t9 == NULL){
+    printf("Can't open dataset (t9).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t9).\n");
+  }
+
+  fp_rh_9 = fopen(DATASETFNAME, "r");
+  if(fp_rh_9 == NULL){
+    printf("Can't open dataset (rh_9).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_9).\n");
+  }
+
+  fp_t_out = fopen(DATASETFNAME, "r");
+  if(fp_t_out == NULL){
+    printf("Can't open dataset (t_out).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (t_out).\n");
+  }
+
+  fp_press_mm_hg = fopen(DATASETFNAME, "r");
+  if(fp_press_mm_hg == NULL){
+    printf("Can't open dataset (press_mm_hg).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (press_mm_hg).\n");
+  }
+
+  fp_rh_out = fopen(DATASETFNAME, "r");
+  if(fp_rh_out == NULL){
+    printf("Can't open dataset (rh_out).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rh_out).\n");
+  }
+
+  fp_windspeed = fopen(DATASETFNAME, "r");
+  if(fp_windspeed == NULL){
+    printf("Can't open dataset (windspeed).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (windspeed).\n");
+  }
+
+  fp_visibility = fopen(DATASETFNAME, "r");
+  if(fp_visibility == NULL){
+    printf("Can't open dataset (visibility).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (visibility).\n");
+  }
+
+  fp_tdewpoint = fopen(DATASETFNAME, "r");
+  if(fp_tdewpoint == NULL){
+    printf("Can't open dataset (tdewpoint).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (tdewpoint).\n");
+  }
+
+  fp_rv1 = fopen(DATASETFNAME, "r");
+  if(fp_rv1 == NULL){
+    printf("Can't open dataset (rv1).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rv1).\n");
+  }
+
+  fp_rv2 = fopen(DATASETFNAME, "r");
+  if(fp_rv2 == NULL){
+    printf("Can't open dataset (rv2).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (rv2).\n");
   }
 
 
@@ -3041,20 +3807,92 @@ main(int argc, char **argv) {
     }
   }
 
-  fclose(fp_ambienttemp);
-  printf("Closed dataset (ambienttemp).\n");
+ fclose(fp_date);
+  printf("Closed dataset (date).\n");
 
-  fclose(fp_exhaustvacc);
-  printf("Closed dataset (exhaustvacc).\n");
+  fclose(fp_appliances);
+  printf("Closed dataset (appliances).\n");
 
-  fclose(fp_ambientpres);
-  printf("Closed dataset (ambientpres).\n");
+  fclose(fp_lights);
+  printf("Closed dataset (lights).\n");
 
-  fclose(fp_relhumidity);
-  printf("Closed dataset (relhumidity).\n");
+  fclose(fp_t1);
+  printf("Closed dataset (t1).\n");
 
-  fclose(fp_energyoutput);
-  printf("Closed dataset (energyoutput).\n");
+  fclose(fp_rh_1);
+  printf("Closed dataset (rh_1).\n");
+
+  fclose(fp_t2);
+  printf("Closed dataset (t2).\n");
+
+  fclose(fp_rh_2);
+  printf("Closed dataset (rh_2).\n");
+
+  fclose(fp_t3);
+  printf("Closed dataset (t3).\n");
+
+  fclose(fp_rh_3);
+  printf("Closed dataset (rh_3).\n");
+
+  fclose(fp_t4);
+  printf("Closed dataset (t4).\n");
+
+  fclose(fp_rh_4);
+  printf("Closed dataset (rh_4).\n");
+
+  fclose(fp_t5);
+  printf("Closed dataset (t5).\n");
+
+  fclose(fp_rh_5);
+  printf("Closed dataset (rh_5).\n");
+
+  fclose(fp_t6);
+  printf("Closed dataset (t6).\n");
+
+  fclose(fp_rh_6);
+  printf("Closed dataset (rh_6).\n");
+
+  fclose(fp_t7);
+  printf("Closed dataset (t7).\n");
+
+  fclose(fp_rh_7);
+  printf("Closed dataset (rh_7).\n");
+
+  fclose(fp_t8);
+  printf("Closed dataset (t8).\n");
+
+  fclose(fp_rh_8);
+  printf("Closed dataset (rh_8).\n");
+
+  fclose(fp_t9);
+  printf("Closed dataset (t9).\n");
+
+  fclose(fp_rh_9);
+  printf("Closed dataset (rh_9).\n");
+
+  fclose(fp_t_out);
+  printf("Closed dataset (t_out).\n");
+
+  fclose(fp_press_mm_hg);
+  printf("Closed dataset (press_mm_hg).\n");
+
+  fclose(fp_rh_out);
+  printf("Closed dataset (rh_out).\n");
+
+  fclose(fp_windspeed);
+  printf("Closed dataset (windspeed).\n");
+
+  fclose(fp_visibility);
+  printf("Closed dataset (visibility).\n");
+
+  fclose(fp_tdewpoint);
+  printf("Closed dataset (tdewpoint).\n");
+
+  fclose(fp_rv1);
+  printf("Closed dataset (rv1).\n");
+
+  fclose(fp_rv2);
+  printf("Closed dataset (rv2).\n");
 
   coap_free(ca_mem);
   coap_free(cert_mem);

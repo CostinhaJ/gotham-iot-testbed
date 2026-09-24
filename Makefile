@@ -53,7 +53,7 @@ buildstatus/building_monitor: Dockerfiles/iot/building_monitor/Dockerfile Docker
 	$(BUILD_CMD) --file $< --tag iotsim/building-monitor Dockerfiles/iot/building_monitor
 	@touch $@
 
-buildstatus/sensor: Dockerfiles/iot/sensor/Dockerfile Dockerfiles/iot/sensor/coap-server-mod.c Dockerfiles/iot/sensor/combined_cycle_power_plant/Fold1_pp.csv.xz
+buildstatus/sensor: Dockerfiles/iot/sensor/Dockerfile Dockerfiles/iot/sensor/coap-server-mod.c Dockerfiles/iot/sensor/appliances_energy/energydata_complete.csv.xz
 	$(BUILD_CMD) --file $< --tag iotsim/sensor Dockerfiles/iot/sensor
 	@touch $@
 

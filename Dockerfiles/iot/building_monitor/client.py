@@ -45,11 +45,11 @@ config = {"MQTT_BROKER_ADDR": "localhost",
 
           # --- CoAP ---
           # Example: "192.168.10.1-192.168.10.50;192.168.20.2". Empty = CoAP threads disabled.
-          "COAP_ADDR_LIST": "192.168.17.10",
+          "COAP_ADDR_LIST": "",
           "PSK": "",    # non-empty = use coaps with the key read from PSK_FILE
-          "SLEEP_TIME_COAP": 300,
+          "SLEEP_TIME_COAP": 60,
           "SLEEP_TIME_SD_COAP": 10,
-          "PING_SLEEP_TIME_COAP": 600,
+          "PING_SLEEP_TIME_COAP": 60,
           "PING_SLEEP_TIME_SD_COAP": 10,
           "ACTIVE_TIME_COAP": 60,
           "ACTIVE_TIME_COAP_SD": 0,
@@ -453,8 +453,14 @@ def telemetry_coap(sleep_t, sleep_t_sd, event, die_event, client_list, coap_bin,
         if event.is_set():
             for client in client_list:
                 rcv_payload = {}
-                resource_list = ["ambient_temperature", "exhaust_vacuum", "ambient_pressure",
-                                 "relative_humidity", "energy_output"]
+                #resource_list = ["ambient_temperature", "exhaust_vacuum", "ambient_pressure",
+                #                 "relative_humidity", "energy_output"]
+                resource_list = [ "date","appliances","lights","t1","rh_1",
+                                  "t2","rh_2","t3","rh_3","t4","rh_4",
+                                  "t5","rh_5","t6","rh_6","t7","rh_7",
+                                  "t8","rh_8","t9","rh_9","t_out","press_mm_hg",
+                                  "rh_out","windspeed","visibility","tdewpoint","rv1","rv2"]
+
                 for resource in resource_list:
                     uri = f"{coap_scheme}://{client}/{resource}"
                     cmd = f"{coap_bin} {coap_identity} -m GET {uri}"
@@ -634,38 +640,34 @@ if __name__ == "__main__":
     config["coap_enabled"] = bool(config["COAP_ADDR_LIST"].strip())
     config["coap_bin"] = None
 
-    if not config["coap_enabled"]:
-        print("[  setup  ] COAP_ADDR_LIST is empty. CoAP threads disabled.")
-        config["COAP_ADDR_LIST"] = []
-        config["PSK"] = None
-    else:
-        address_list = []
-        # config["COAP_ADDR_LIST"] example: "192.168.10.1-192.168.10.50;192.168.20.2"
-        for ip_range in list(map(str.strip, config["COAP_ADDR_LIST"].split(";"))):
-            if ip_range:
-                address_list.extend(iprange(*list(map(str.strip, ip_range.split("-")))))
-        config["COAP_ADDR_LIST"] = address_list
 
-        config["coap_bin"] = shutil.which("coap-client", path=os.environ.get("PATH", "") + ":/opt")
-        if not config["coap_bin"]:
-            sys.exit("[  setup  ] No 'coap-client' binary found. Exiting.")
+    address_list = []
+    # config["COAP_ADDR_LIST"] example: "192.168.10.1-192.168.10.50;192.168.20.2"
+    for ip_range in list(map(str.strip, config["COAP_ADDR_LIST"].split(";"))):
+        if ip_range:
+            address_list.extend(iprange(*list(map(str.strip, ip_range.split("-")))))
+    config["COAP_ADDR_LIST"] = address_list
 
-        for ip_addr in config["COAP_ADDR_LIST"]:
-            print(f"[  setup  ] pinging {ip_addr}")
-            if not ping(config["ping_bin"], str(ip_addr), attempts=3, wait=10):
-                sys.exit(f"[  setup  ] {ip_addr} is down")
+    config["coap_bin"] = shutil.which("coap-client", path=os.environ.get("PATH", "") + ":/opt")
+    if not config["coap_bin"]:
+        sys.exit("[  setup  ] No 'coap-client' binary found. Exiting.")
 
-        if config["PSK"]:
-            print("[  setup  ] With pre-shared key")
-            try:
-                with open(PSK_FILE, "r") as f:
-                    config["PSK"] = f.read().strip()
-            except FileNotFoundError:
-                print(f"[  setup  ] Error opening {PSK_FILE}")
-                config["PSK"] = None
-            print(f"[  setup  ] Pre-shared key is: `{config['PSK']}'")
-        else:
-            print("[  setup  ] NO pre-shared key")
+    for ip_addr in config["COAP_ADDR_LIST"]:
+        print(f"[  setup  ] pinging {ip_addr}")
+        if not ping(config["ping_bin"], str(ip_addr), attempts=3, wait=10):
+            sys.exit(f"[  setup  ] {ip_addr} is down")
+
+    if config["PSK"]:
+        print("[  setup  ] With pre-shared key")
+        try:
+            with open(PSK_FILE, "r") as f:
+                config["PSK"] = f.read().strip()
+        except FileNotFoundError:
+            print(f"[  setup  ] Error opening {PSK_FILE}")
             config["PSK"] = None
+        print(f"[  setup  ] Pre-shared key is: `{config['PSK']}'")
+    else:
+        print("[  setup  ] NO pre-shared key")
+        config["PSK"] = None
 
     main(config)

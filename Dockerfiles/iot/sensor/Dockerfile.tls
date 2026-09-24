@@ -1,4 +1,4 @@
-FROM iotsim/combined-cycle
+FROM iotsim/sensor
 
 COPY --from=iotsim/certificates:latest /artifacts/psk/psk.txt /psk.txt
 

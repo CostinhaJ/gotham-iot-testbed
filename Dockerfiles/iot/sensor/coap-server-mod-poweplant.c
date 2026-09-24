@@ -70,41 +70,17 @@ static char* strndup(const char* s1, size_t n)
 #endif
 
 /* constants for the IoT dataset */
-#define DATASETFNAME "energydata_complete.csv"
-#define DATASETBUFFSIZE 512     /* each line has ~230 chars */
-#define DATASETCOLSIZE 32
-#define FIELDSEPARATOR ","
-#define DECIMALSEPARATOR "."
-/* dataset columns (1-based) */
-#define COL_DATE         1
-#define COL_APPLIANCES   2
-#define COL_LIGHTS       3
-#define COL_T1           4
-#define COL_RH_1         5
-#define COL_T2           6
-#define COL_RH_2         7
-#define COL_T3           8
-#define COL_RH_3         9
-#define COL_T4          10
-#define COL_RH_4        11
-#define COL_T5          12
-#define COL_RH_5        13
-#define COL_T6          14
-#define COL_RH_6        15
-#define COL_T7          16
-#define COL_RH_7        17
-#define COL_T8          18
-#define COL_RH_8        19
-#define COL_T9          20
-#define COL_RH_9        21
-#define COL_T_OUT       22
-#define COL_PRESS_MM_HG 23
-#define COL_RH_OUT      24
-#define COL_WINDSPEED   25
-#define COL_VISIBILITY  26
-#define COL_TDEWPOINT   27
-#define COL_RV1         28
-#define COL_RV2         29
+#define DATASETFNAME "Fold1_pp.csv"
+#define DATASETBUFFSIZE 50
+#define DATASETCOLSIZE 30
+#define FIELDSEPARATOR ";"
+#define DECIMALSEPARATOR ","
+/* dataset columns */
+#define AMBIENTTEMP 1
+#define EXHAUSTVACC 2
+#define AMBIENTPRES 3
+#define RELHUMIDITY 4
+#define ENERGYOUTPUT 5
 
 /* temporary storage for dynamic resource representations */
 static int quit = 0;
@@ -267,7 +243,7 @@ reference_resource_data(transient_value_t *entry) {
   return body;
 }
 
-#define INDEX "--------------------Appliances Energy Prediction--------------------\n" \
+#define INDEX "----------------------Combined Cycle Power Plant----------------------\n" \
               "This is a test server made with libcoap (see https://libcoap.net)\n" \
               "Copyright (C) 2010--2021 Olaf Bergmann <bergmann@tzi.org> and others\n\n"
 
@@ -275,7 +251,6 @@ reference_resource_data(transient_value_t *entry) {
 void dataset_read(char *col_data, FILE *ifp, char *delim, int col_num) {
   char buffer[DATASETBUFFSIZE];
   char *token;
-  size_t len;
 
   if(fgets(buffer, DATASETBUFFSIZE, ifp) == NULL) {
 
@@ -292,93 +267,108 @@ void dataset_read(char *col_data, FILE *ifp, char *delim, int col_num) {
 
   // extract column
   token = strtok(buffer, delim);
-  while(token != NULL && --col_num > 0){
+  while(--col_num > 0){
     token = strtok(NULL, delim);
   }
 
-  if(token == NULL){
-    strcpy(col_data, "\n");
-    return;
+  strcpy(col_data, token);
+  if(col_data[strlen(col_data)-1] != '\n'){
+    strcat(col_data, "\n");
   }
-
-  // remove surrounding quotes and trailing \r / \n
-  if(*token == '"')
-    token++;
-  len = strlen(token);
-  while(len > 0 && (token[len-1] == '\n' || token[len-1] == '\r' || token[len-1] == '"'))
-    token[--len] = '\0';
-
-  if(len > DATASETCOLSIZE - 2)
-    len = DATASETCOLSIZE - 2;
-  memcpy(col_data, token, len);
-  col_data[len] = '\n';
-  col_data[len+1] = '\0';
 
 }
 
-/* one entry per dataset column exposed as a CoAP resource;
- * each entry keeps its own FILE pointer so every resource
- * walks through the dataset independently */
-typedef struct {
-  const char *path;   /* CoAP resource path */
-  const char *title;  /* "title" attribute */
-  const char *name;   /* name used in log messages */
-  int col;            /* column number in the dataset */
-  FILE *fp;
-} dataset_col_t;
+/* handle dataset Ambient Temperature column */
+FILE *fp_ambienttemp;
 
-static dataset_col_t dataset_cols[] = {
-  { "date",        "\"Date time year-month-day hour:minute:second\"",        "date",        COL_DATE,         NULL },
-  { "appliances",  "\"Energy use of appliances Wh\"",                         "appliances",  COL_APPLIANCES,   NULL },
-  { "lights",      "\"Energy use of light fixtures Wh\"",                     "lights",      COL_LIGHTS,       NULL },
-  { "t1",          "\"Temperature in kitchen area ºC\"",                      "t1",          COL_T1,           NULL },
-  { "rh_1",        "\"Humidity in kitchen area %\"",                          "rh_1",        COL_RH_1,         NULL },
-  { "t2",          "\"Temperature in living room area ºC\"",                  "t2",          COL_T2,           NULL },
-  { "rh_2",        "\"Humidity in living room area %\"",                      "rh_2",        COL_RH_2,         NULL },
-  { "t3",          "\"Temperature in laundry room area ºC\"",                 "t3",          COL_T3,           NULL },
-  { "rh_3",        "\"Humidity in laundry room area %\"",                     "rh_3",        COL_RH_3,         NULL },
-  { "t4",          "\"Temperature in office room ºC\"",                       "t4",          COL_T4,           NULL },
-  { "rh_4",        "\"Humidity in office room %\"",                           "rh_4",        COL_RH_4,         NULL },
-  { "t5",          "\"Temperature in bathroom ºC\"",                          "t5",          COL_T5,           NULL },
-  { "rh_5",        "\"Humidity in bathroom %\"",                              "rh_5",        COL_RH_5,         NULL },
-  { "t6",          "\"Temperature outside the building (north side) ºC\"",    "t6",          COL_T6,           NULL },
-  { "rh_6",        "\"Humidity outside the building (north side) %\"",        "rh_6",        COL_RH_6,         NULL },
-  { "t7",          "\"Temperature in ironing room ºC\"",                      "t7",          COL_T7,           NULL },
-  { "rh_7",        "\"Humidity in ironing room %\"",                          "rh_7",        COL_RH_7,         NULL },
-  { "t8",          "\"Temperature in teenager room 2 ºC\"",                   "t8",          COL_T8,           NULL },
-  { "rh_8",        "\"Humidity in teenager room 2 %\"",                       "rh_8",        COL_RH_8,         NULL },
-  { "t9",          "\"Temperature in parents room ºC\"",                      "t9",          COL_T9,           NULL },
-  { "rh_9",        "\"Humidity in parents room %\"",                          "rh_9",        COL_RH_9,         NULL },
-  { "t_out",       "\"Temperature outside (weather station) ºC\"",            "t_out",       COL_T_OUT,        NULL },
-  { "press_mm_hg", "\"Pressure (weather station) mm Hg\"",                    "press_mm_hg", COL_PRESS_MM_HG,  NULL },
-  { "rh_out",      "\"Humidity outside (weather station) %\"",                "rh_out",      COL_RH_OUT,       NULL },
-  { "windspeed",   "\"Windspeed (weather station) m/s\"",                     "windspeed",   COL_WINDSPEED,    NULL },
-  { "visibility",  "\"Visibility (weather station) km\"",                     "visibility",  COL_VISIBILITY,   NULL },
-  { "tdewpoint",   "\"Dew point (weather station) ºC\"",                      "tdewpoint",   COL_TDEWPOINT,    NULL },
-  { "rv1",         "\"Random variable 1 (nondimensional)\"",                  "rv1",         COL_RV1,          NULL },
-  { "rv2",         "\"Random variable 2 (nondimensional)\"",                  "rv2",         COL_RV2,          NULL },
-};
-
-#define DATASET_NUM_COLS (sizeof(dataset_cols) / sizeof(dataset_cols[0]))
-
-/* generic handler for every dataset column; the column is
- * taken from the resource user data (see init_resources()) */
 static void
-hnd_get_dataset_col(coap_resource_t *resource,
+hnd_get_ambienttemp(coap_resource_t *resource,
                     coap_session_t *session,
                     const coap_pdu_t *request,
                     const coap_string_t *query,
                     coap_pdu_t *response) {
   char response_data[DATASETCOLSIZE];
-  dataset_col_t *c = (dataset_col_t *)coap_resource_get_userdata(resource);
-
-  dataset_read(response_data, c->fp, FIELDSEPARATOR, c->col);
+  dataset_read(response_data, fp_ambienttemp, FIELDSEPARATOR, AMBIENTTEMP);
   coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
   coap_add_data_large_response(resource, session, request, response,
                                query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
                                strlen(response_data),
-                               (const uint8_t *)response_data, NULL, NULL);
+                               response_data, NULL, NULL);
 }
+
+/* handle dataset Exhaust Vacuum column */
+FILE *fp_exhaustvacc;
+
+static void
+hnd_get_exhaustvacc(coap_resource_t *resource,
+                    coap_session_t *session,
+                    const coap_pdu_t *request,
+                    const coap_string_t *query,
+                    coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_exhaustvacc, FIELDSEPARATOR, EXHAUSTVACC);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset Ambient Pressure column */
+FILE *fp_ambientpres;
+
+static void
+hnd_get_ambientpress(coap_resource_t *resource,
+                     coap_session_t *session,
+                     const coap_pdu_t *request,
+                     const coap_string_t *query,
+                     coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_ambientpres, FIELDSEPARATOR, AMBIENTPRES);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+/* handle dataset Relative Humidity column */
+FILE *fp_relhumidity;
+
+static void
+hnd_get_relhumidity(coap_resource_t *resource,
+                    coap_session_t *session,
+                    const coap_pdu_t *request,
+                    const coap_string_t *query,
+                    coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_relhumidity, FIELDSEPARATOR, RELHUMIDITY);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
+
+/* handle dataset Net hourly electrical energy output column */
+FILE *fp_energyoutput;
+
+static void
+hnd_get_energyoutput(coap_resource_t *resource,
+                     coap_session_t *session,
+                     const coap_pdu_t *request,
+                     const coap_string_t *query,
+                     coap_pdu_t *response) {
+  char response_data[DATASETCOLSIZE];
+  dataset_read(response_data, fp_energyoutput, FIELDSEPARATOR, ENERGYOUTPUT);
+  coap_pdu_set_code(response, COAP_RESPONSE_CODE_CONTENT);
+  coap_add_data_large_response(resource, session, request, response,
+                               query, COAP_MEDIATYPE_TEXT_PLAIN, 1, 0,
+                               strlen(response_data),
+                               response_data, NULL, NULL);
+}
+
 
 static void
 hnd_get_index(coap_resource_t *resource,
@@ -1952,18 +1942,30 @@ init_resources(coap_context_t *ctx) {
   }
 #endif /* SERVER_CAN_PROXY */
 
-  for (size_t i = 0; i < DATASET_NUM_COLS; i++) {
-    coap_str_const_t path = { strlen(dataset_cols[i].path),
-                              (const uint8_t *)dataset_cols[i].path };
-    coap_str_const_t title = { strlen(dataset_cols[i].title),
-                               (const uint8_t *)dataset_cols[i].title };
+  r = coap_resource_init(coap_make_str_const("ambient_temperature"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_ambienttemp);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Ambient Temperature ºC\""), 0);
+  coap_add_resource(ctx, r);
 
-    r = coap_resource_init(&path, resource_flags);
-    coap_register_handler(r, COAP_REQUEST_GET, hnd_get_dataset_col);
-    coap_add_attr(r, coap_make_str_const("title"), &title, 0);
-    coap_resource_set_userdata(r, &dataset_cols[i]);
-    coap_add_resource(ctx, r);
-  }
+  r = coap_resource_init(coap_make_str_const("exhaust_vacuum"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_exhaustvacc);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Exhaust Vacuum cm Hg\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("ambient_pressure"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_ambientpress);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Ambient Pressure milibar\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("relative_humidity"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_relhumidity);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Relative Humidity %\""), 0);
+  coap_add_resource(ctx, r);
+
+  r = coap_resource_init(coap_make_str_const("energy_output"), resource_flags);
+  coap_register_handler(r, COAP_REQUEST_GET, hnd_get_energyoutput);
+  coap_add_attr(r, coap_make_str_const("title"), coap_make_str_const("\"Net hourly electrical energy output (MW)\""), 0);
+  coap_add_resource(ctx, r);
 }
 
 static int
@@ -2878,14 +2880,44 @@ main(int argc, char **argv) {
     }
   }
 
-  for (size_t i = 0; i < DATASET_NUM_COLS; i++) {
-    dataset_cols[i].fp = fopen(DATASETFNAME, "r");
-    if(dataset_cols[i].fp == NULL){
-      printf("Can't open dataset (%s).\n", dataset_cols[i].name);
-      return 1;
-    } else {
-      printf("Opened dataset (%s).\n", dataset_cols[i].name);
-    }
+  fp_ambienttemp = fopen(DATASETFNAME, "r");
+  if(fp_ambienttemp == NULL){
+    printf("Can't open dataset (ambienttemp).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (ambienttemp).\n");
+  }
+
+  fp_exhaustvacc = fopen(DATASETFNAME, "r");
+  if(fp_exhaustvacc == NULL){
+    printf("Can't open dataset (exhaustvacc).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (exhaustvacc).\n");
+  }
+
+  fp_ambientpres = fopen(DATASETFNAME, "r");
+  if(fp_ambientpres == NULL){
+    printf("Can't open dataset (ambientpres).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (ambientpres).\n");
+  }
+
+  fp_relhumidity = fopen(DATASETFNAME, "r");
+  if(fp_relhumidity == NULL){
+    printf("Can't open dataset (relhumidity).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (relhumidity).\n");
+  }
+
+  fp_energyoutput = fopen(DATASETFNAME, "r");
+  if(fp_energyoutput == NULL){
+    printf("Can't open dataset (energyoutput).\n");
+    return 1;
+  } else {
+    printf("Opened dataset (energyoutput).\n");
   }
 
 
@@ -3009,10 +3041,20 @@ main(int argc, char **argv) {
     }
   }
 
-  for (size_t i = 0; i < DATASET_NUM_COLS; i++) {
-    fclose(dataset_cols[i].fp);
-    printf("Closed dataset (%s).\n", dataset_cols[i].name);
-  }
+  fclose(fp_ambienttemp);
+  printf("Closed dataset (ambienttemp).\n");
+
+  fclose(fp_exhaustvacc);
+  printf("Closed dataset (exhaustvacc).\n");
+
+  fclose(fp_ambientpres);
+  printf("Closed dataset (ambientpres).\n");
+
+  fclose(fp_relhumidity);
+  printf("Closed dataset (relhumidity).\n");
+
+  fclose(fp_energyoutput);
+  printf("Closed dataset (energyoutput).\n");
 
   coap_free(ca_mem);
   coap_free(cert_mem);

@@ -19,13 +19,13 @@ RUN ./autogen.sh &&\
     ./configure --enable-examples --enable-dtls --with-tinydtls --disable-shared --disable-documentation &&\
     make
 
-COPY combined_cycle_power_plant/Fold1_pp.csv.xz Fold1_pp.csv.xz
-RUN xz -v -d Fold1_pp.csv.xz &&\
-    sed -i '1d' Fold1_pp.csv
+#COPY combined_cycle_power_plant/Fold1_pp.csv.xz Fold1_pp.csv.xz
+#RUN xz -v -d Fold1_pp.csv.xz &&\
+#    sed -i '1d' Fold1_pp.csv
 
-#    COPY appliances_energy/energydata_complete.csv.xz energydata_complete.csv.xz
-#    RUN xz -v -d energydata_complete.csv.xz &&\
-#        sed -i '1d' energydata_complete.csv
+COPY appliances_energy/energydata_complete.csv.xz energydata_complete.csv.xz
+RUN xz -v -d energydata_complete.csv.xz &&\
+    sed -i '1d' energydata_complete.csv
 
 FROM ubuntu:focal
 
@@ -37,8 +37,7 @@ RUN apt update && apt install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/libcoap/examples/coap-server-tinydtls /opt/coap-server
-COPY --from=builder /opt/libcoap/Fold1_pp.csv /Fold1_pp.csv
-
-# COPY --from=builder /opt/libcoap/appliances_energy/energydata_complete.csv
+#COPY --from=builder /opt/libcoap/Fold1_pp.csv /Fold1_pp.csv
+COPY --from=builder /opt/libcoap/energydata_complete.csv /energydata_complete.csv
 
 ENTRYPOINT [ "/opt/coap-server", "-v", "7", "-p", "5683" ]
