@@ -3,6 +3,7 @@
 import json
 import lzma
 import os
+import queue
 import random
 import shutil
 import signal
@@ -31,7 +32,7 @@ config = {"MQTT_BROKER_ADDR": "localhost",
           "TLS_INSECURE": "false",
           "MODEL_PATH": "./models/decision_model.joblib",          # trained decision model (joblib), must expose .predict()
           "NORMALIZATION_PATH": "./models/normalization.joblib",   # normalization fitted on the training data, see normalize_features()
-          "SLEEP_TIME": 300,
+          "SLEEP_TIME": 300,            # only used in CSV fallback mode (COAP_ADDR_LIST empty)
           "SLEEP_TIME_SD": 1,
           "PING_SLEEP_TIME": 60,
           "PING_SLEEP_TIME_SD": 1,
@@ -44,7 +45,8 @@ config = {"MQTT_BROKER_ADDR": "localhost",
           "NTP_SLEEP_TIME_SD": 0,
 
           # --- CoAP ---
-          # Example: "192.168.10.1-192.168.10.50;192.168.20.2". Empty = CoAP threads disabled.
+          # Example: "192.168.10.1-192.168.10.50;192.168.20.2".
+          # Empty = CoAP threads disabled and MQTT falls back to reading the CSV.
           "COAP_ADDR_LIST": "",
           "PSK": "",    # non-empty = use coaps with the key read from PSK_FILE
           "SLEEP_TIME_COAP": 60,
@@ -55,9 +57,22 @@ config = {"MQTT_BROKER_ADDR": "localhost",
           "ACTIVE_TIME_COAP_SD": 0,
           "INACTIVE_TIME_COAP": 0,
           "INACTIVE_TIME_COAP_SD": 0,
+
+          # Max CoAP readings waiting to be published over MQTT. When full,
+          # the oldest reading is dropped so MQTT always sends fresh data.
+          "COAP_QUEUE_SIZE": 10,
           }
 
 PSK_FILE = "/opt/psk.txt"
+
+# CoAP resources requested from each server. The ORDER must match the CSV
+# column order (dataset_columns in telemetry()), because the MQTT thread and
+# the decision model index the reading by position.
+COAP_RESOURCES = ["date", "appliances", "lights", "t1", "rh_1",
+                  "t2", "rh_2", "t3", "rh_3", "t4", "rh_4",
+                  "t5", "rh_5", "t6", "rh_6", "t7", "rh_7",
+                  "t8", "rh_8", "t9", "rh_9", "t_out", "press_mm_hg",
+                  "rh_out", "windspeed", "visibility", "tdewpoint", "rv1", "rv2"]
 
 
 def readloop(file, openfunc=open, skipfirst=True):
@@ -79,9 +94,42 @@ def as_json(payload):
     return json.dumps(payload)
 
 
+# --- CoAP -> MQTT hand-off --------------------------------------------------
+
+def parse_coap_reading(rcv_payload):
+    """Turn {resource: "raw string"} from the CoAP thread into a typed list in
+    the same layout as a parsed CSV row: [date, int, int, float, float, ...].
+
+    Returns None if any resource is missing or not numeric -- the decision
+    model needs the complete feature vector, so partial readings are skipped.
+    """
+    try:
+        line = [rcv_payload[r] for r in COAP_RESOURCES]
+        line[1:3] = [int(float(v)) for v in line[1:3]]
+        line[3:] = [float(v) for v in line[3:]]
+        return line
+    except (KeyError, ValueError) as e:
+        print(f"[requests ] incomplete/invalid reading, not forwarded to MQTT: {e!r}")
+        return None
+
+
+def queue_put_latest(q, item):
+    """Put item in q; if q is full, drop the oldest item(s) to make room."""
+    while True:
+        try:
+            q.put_nowait(item)
+            return
+        except queue.Full:
+            try:
+                dropped = q.get_nowait()
+                print(f"[requests ] MQTT queue full, dropping oldest reading from {dropped[0]}")
+            except queue.Empty:
+                pass
+
+
 # --- Decision model: per-reading adaptive TLS security level ---------------
 #
-# Each CSV row is classified by the pre-trained decision model into one of 3
+# Each reading is classified by the pre-trained decision model into one of 3
 # NIST post-quantum security levels. That level picks the TLS 1.3 group used
 # for the MQTT publish of that particular reading, out of the groups already
 # listed in config["TLS"]'s comment.
@@ -108,11 +156,7 @@ def build_tls_context(ca_certs, tls_group, insecure):
     preference list, e.g. "X25519MLKEM768" or DEFAULT_TLS_GROUPS).
 
     A *new* SSLContext is built per publish rather than reused, because the
-    group has to change per reading -- reusing one context and calling
-    set_groups() again between connections is unnecessary risk (no
-    guarantee OpenSSL doesn't cache/derive anything from the previous
-    negotiation), and a fresh SSLContext is cheap relative to the
-    ~SLEEP_TIME publish cadence here.
+    group has to change per reading.
 
     Raises ssl.SSLError if `tls_group` isn't recognized -- e.g. a PQC group
     name but the local OpenSSL build doesn't have oqs-provider loaded/
@@ -161,13 +205,13 @@ def normalize_features(features, normalizer):
 
 
 def classify_security_level(data_line, model, normalizer):
-    """Classify one already-parsed CSV row and return the NIST security
+    """Classify one already-typed reading and return the NIST security
     level (see NIST_LEVEL_TO_TLS_GROUP) predicted by the decision model.
 
-    `data_line` must already have the same typing applied as in the
-    telemetry loop (ints for columns 1:3, floats for columns 3:), i.e. every
-    field except the leading date/time column is numeric. Change the slice
-    below if the model expects a different subset/order of columns.
+    `data_line` must already be typed (ints for columns 1:3, floats for
+    columns 3:), i.e. every field except the leading date/time column is
+    numeric. Change the slice below if the model expects a different
+    subset/order of columns.
     """
     features = np.asarray(data_line[1:], dtype=float).reshape(1, -1)
     normalized = normalize_features(features, normalizer)
@@ -266,12 +310,18 @@ def ntp_client(sleep_t, sleep_t_sd, die_event, ntp_server, ntp_bin):
     print("[   ntp   ] killing thread")
 
 
-def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mqtt_auth, mqtt_qos, mqtt_tls, mqtt_cacert, mqtt_tls_insecure, decision_model, normalizer):
-    """Periodically send sensor data to the MQTT broker.
+def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mqtt_auth, mqtt_qos, mqtt_tls, mqtt_cacert, mqtt_tls_insecure, decision_model, normalizer, data_queue):
+    """Publish sensor readings to the MQTT broker.
 
-    Before each publish, the reading just read from the CSV is classified by
-    `decision_model` (see classify_security_level()); the resulting NIST
-    level selects the TLS group used for that publish.
+    Data source:
+      - data_queue is not None -> readings produced by the CoAP thread
+        (telemetry_coap). Each reading is published as soon as it arrives,
+        so the publish rate follows SLEEP_TIME_COAP; SLEEP_TIME is unused.
+      - data_queue is None     -> fallback: read the CSV every ~SLEEP_TIME s.
+
+    Before each publish, the reading is classified by `decision_model`
+    (see classify_security_level()); the resulting NIST level selects the
+    TLS group used for that publish.
     """
     print("[telemetry] starting thread")
     dataset_fname = "/energydata_complete.csv.xz"
@@ -365,18 +415,22 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
                      "Random variable 1, (nondimensional)",
                      "Random variable 2, (nondimensional)"]
 
-    try:
-        with open(dataset_fname, "rb"):
-            pass
-    except Exception as e:
-        print(f"[telemetry] error opening `{dataset_fname}'")
-        print(e)
-        die_event.set()
-        print("[telemetry] killing thread")
-        return
-
-    data_iter = readloop(dataset_fname, lzma.open)
-    print(f"[telemetry] opened `{dataset_fname}'")
+    if data_queue is None:
+        # --- CSV fallback (CoAP disabled) ---
+        try:
+            with open(dataset_fname, "rb"):
+                pass
+        except Exception as e:
+            print(f"[telemetry] error opening `{dataset_fname}'")
+            print(e)
+            die_event.set()
+            print("[telemetry] killing thread")
+            return
+        data_iter = readloop(dataset_fname, lzma.open)
+        print(f"[telemetry] CoAP disabled, reading from `{dataset_fname}'")
+    else:
+        data_iter = None
+        print("[telemetry] reading from CoAP thread")
 
     if mqtt_tls:
         current_tls_group = DEFAULT_TLS_GROUPS
@@ -387,9 +441,19 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
 
     while not die_event.is_set():
         if event.is_set():
-            data_line = next(data_iter).strip().split(dataset_fieldseparator)
-            data_line[1:3] = list(map(int, data_line[1:3]))
-            data_line[3:] = list(map(float, data_line[3:]))
+            # --- get the next reading ---
+            if data_queue is not None:
+                try:
+                    source, data_line = data_queue.get(timeout=1)
+                except queue.Empty:
+                    continue    # nothing from CoAP yet; re-check die_event/event
+            else:
+                source = dataset_fname
+                data_line = next(data_iter).strip().split(dataset_fieldseparator)
+                data_line[1:3] = list(map(int, data_line[1:3]))
+                data_line[3:] = list(map(float, data_line[3:]))
+
+            print(f"[telemetry] got reading from {source} (date {data_line[0]})")
 
             # --- adaptive TLS: classify this reading and pick the TLS group ---
             if mqtt_tls and decision_model is not None and normalizer is not None:
@@ -428,18 +492,22 @@ def telemetry(sleep_t, sleep_t_sd, event, die_event, mqtt_topic, broker_addr, mq
                 print(f"[telemetry] {e}")
                 die_event.set()
 
-            sleep_time = random.gauss(sleep_t, sleep_t_sd)
-            sleep_time = sleep_t if sleep_time < 0 else sleep_time
-            print(f"[telemetry] sleeping for {sleep_time}s")
-            die_event.wait(timeout=sleep_time)
+            if data_queue is None:
+                # CSV mode: pace the publishes ourselves.
+                sleep_time = random.gauss(sleep_t, sleep_t_sd)
+                sleep_time = sleep_t if sleep_time < 0 else sleep_time
+                print(f"[telemetry] sleeping for {sleep_time}s")
+                die_event.wait(timeout=sleep_time)
+            # CoAP mode: no sleep, the next data_queue.get() waits for the next reading.
         else:
             print("[telemetry] zZzzZZz sleeping... zzZzZZz")
             event.wait(timeout=1)
     print("[telemetry] killing thread")
 
 
-def telemetry_coap(sleep_t, sleep_t_sd, event, die_event, client_list, coap_bin, psk):
-    """Periodically send a series of coap requests to a list of clients (coap servers)."""
+def telemetry_coap(sleep_t, sleep_t_sd, event, die_event, client_list, coap_bin, psk, data_queue):
+    """Periodically request all COAP_RESOURCES from each client (coap server)
+    and hand every complete reading to the MQTT thread through data_queue."""
     print("[requests ] starting thread")
 
     if psk:
@@ -453,15 +521,10 @@ def telemetry_coap(sleep_t, sleep_t_sd, event, die_event, client_list, coap_bin,
         if event.is_set():
             for client in client_list:
                 rcv_payload = {}
-                #resource_list = ["ambient_temperature", "exhaust_vacuum", "ambient_pressure",
-                #                 "relative_humidity", "energy_output"]
-                resource_list = [ "date","appliances","lights","t1","rh_1",
-                                  "t2","rh_2","t3","rh_3","t4","rh_4",
-                                  "t5","rh_5","t6","rh_6","t7","rh_7",
-                                  "t8","rh_8","t9","rh_9","t_out","press_mm_hg",
-                                  "rh_out","windspeed","visibility","tdewpoint","rv1","rv2"]
 
-                for resource in resource_list:
+                for resource in COAP_RESOURCES:
+                    if die_event.is_set():
+                        break
                     uri = f"{coap_scheme}://{client}/{resource}"
                     cmd = f"{coap_bin} {coap_identity} -m GET {uri}"
                     print(f"[requests ] requesting resource `{uri}'...", end="")
@@ -489,6 +552,12 @@ def telemetry_coap(sleep_t, sleep_t_sd, event, die_event, client_list, coap_bin,
                     die_event.wait(timeout=max(0, random.gauss(0.5, 0.2)))
 
                 print(f"[requests ] received payload from {client} = {rcv_payload}")
+
+                # --- hand the reading over to the MQTT thread ---
+                reading = parse_coap_reading(rcv_payload)
+                if reading is not None:
+                    queue_put_latest(data_queue, (str(client), reading))
+                    print(f"[requests ] reading from {client} queued for MQTT ({data_queue.qsize()} pending)")
 
             sleep_time = random.gauss(sleep_t, sleep_t_sd)
             sleep_time = sleep_t if sleep_time < 0 else sleep_time
@@ -523,6 +592,9 @@ def main(conf):
     die_event = threading.Event()
     signal.signal(signal.SIGTERM, lambda a,b:signal_handler(a, b, die_event))
 
+    # CoAP thread -> MQTT thread. None = CoAP disabled, MQTT reads the CSV.
+    data_queue = queue.Queue(maxsize=conf["COAP_QUEUE_SIZE"]) if conf["coap_enabled"] else None
+
     telemetry_thread = threading.Thread(target=telemetry,
                                         name="telemetry",
                                         args=(conf["SLEEP_TIME"],
@@ -530,7 +602,8 @@ def main(conf):
                                               event, die_event,
                                               conf["MQTT_TOPIC_PUB"], conf["MQTT_BROKER_ADDR"], conf["mqtt_auth"], conf["MQTT_QOS"],
                                               conf["TLS"], conf["ca_cert_file"], conf["tls_insecure"],
-                                              conf["decision_model"], conf["normalizer"]),
+                                              conf["decision_model"], conf["normalizer"],
+                                              data_queue),
                                         kwargs={})
     broker_ping_thread = threading.Thread(target=broker_ping,
                                           name="broker_ping",
@@ -542,20 +615,30 @@ def main(conf):
                                          args=(conf["NTP_SLEEP_TIME"], conf["NTP_SLEEP_TIME_SD"], die_event, conf["NTP_SERVER"], conf["ntp_bin"]),
                                          kwargs={},
                                          daemon=False)
-    telemetry_coap_thread = threading.Thread(target=telemetry_coap,
-                                                 name="telemetry",
-                                                 args=(conf["SLEEP_TIME_COAP"], conf["SLEEP_TIME_SD_COAP"], event, die_event, conf["COAP_ADDR_LIST"], conf["coap_bin"], conf["PSK"]),
-                                                 kwargs={})
-    coap_ping_thread = threading.Thread(target=coap_ping,
-                                   name="coap ping",
-                                   args=(conf["PING_SLEEP_TIME_COAP"], conf["PING_SLEEP_TIME_SD_COAP"], die_event, conf["COAP_ADDR_LIST"], conf["coap_bin"]),
-                                   kwargs={}, daemon=False)
 
     die_event.clear()
     broker_ping_thread.start()
-    coap_ping_thread.start()
     telemetry_thread.start()
-    telemetry_coap_thread.start()
+
+    if conf["coap_enabled"]:
+        telemetry_coap_thread = threading.Thread(target=telemetry_coap,
+                                                 name="telemetry_coap",
+                                                 args=(conf["SLEEP_TIME_COAP"], conf["SLEEP_TIME_SD_COAP"], event_coap, die_event,
+                                                       conf["COAP_ADDR_LIST"], conf["coap_bin"], conf["PSK"], data_queue),
+                                                 kwargs={})
+        coap_ping_thread = threading.Thread(target=coap_ping,
+                                            name="coap_ping",
+                                            args=(conf["PING_SLEEP_TIME_COAP"], conf["PING_SLEEP_TIME_SD_COAP"], die_event, conf["COAP_ADDR_LIST"], conf["coap_bin"]),
+                                            kwargs={}, daemon=False)
+        coap_scheduler_thread = threading.Thread(target=activity_scheduler,
+                                                 name="coap_scheduler",
+                                                 args=("  main   ] [coap", event_coap, die_event,
+                                                       conf["ACTIVE_TIME_COAP"], conf["ACTIVE_TIME_COAP_SD"],
+                                                       conf["INACTIVE_TIME_COAP"], conf["INACTIVE_TIME_COAP_SD"]),
+                                                 kwargs={})
+        coap_ping_thread.start()
+        telemetry_coap_thread.start()
+        coap_scheduler_thread.start()
 
     if conf["ntp_bin"]:
         ntp_client_thread.start()
@@ -579,6 +662,7 @@ if __name__ == "__main__":
             pass
 
     config["MQTT_QOS"] = int(config["MQTT_QOS"])
+    config["COAP_QUEUE_SIZE"] = max(1, int(config["COAP_QUEUE_SIZE"]))
     for c in ("SLEEP_TIME", "SLEEP_TIME_SD", "PING_SLEEP_TIME", "PING_SLEEP_TIME_SD", "ACTIVE_TIME", "ACTIVE_TIME_SD", "INACTIVE_TIME", "INACTIVE_TIME_SD", "NTP_SLEEP_TIME", "NTP_SLEEP_TIME_SD",
               "SLEEP_TIME_COAP", "SLEEP_TIME_SD_COAP", "PING_SLEEP_TIME_COAP", "PING_SLEEP_TIME_SD_COAP", "ACTIVE_TIME_COAP", "ACTIVE_TIME_COAP_SD", "INACTIVE_TIME_COAP", "INACTIVE_TIME_COAP_SD"):
         config[c] = float(config[c])
@@ -607,9 +691,7 @@ if __name__ == "__main__":
         config["ntp_bin"] = None
         print("[  setup  ] Disabling ntp.")
 
-    # Load the decision model + normalization file once. They're then handed
-    # to the telemetry thread, which calls classify_security_level() on every
-    # CSV row to pick that reading's TLS group (see NIST_LEVEL_TO_TLS_GROUP).
+    # Load the decision model + normalization file once.
     try:
         config["decision_model"] = joblib.load(config["MODEL_PATH"])
         config["normalizer"] = joblib.load(config["NORMALIZATION_PATH"])
@@ -636,10 +718,9 @@ if __name__ == "__main__":
     print(f"[  setup  ] TLS enabled: {config['TLS']}, ca cert: {config['ca_cert_file']}, TLS insecure: {config['tls_insecure']}")
 
     # --- CoAP setup ---------------------------------------------------------
-    # Empty COAP_ADDR_LIST => CoAP threads disabled, MQTT keeps running.
+    # Empty COAP_ADDR_LIST => CoAP threads disabled, MQTT falls back to the CSV.
     config["coap_enabled"] = bool(config["COAP_ADDR_LIST"].strip())
     config["coap_bin"] = None
-
 
     address_list = []
     # config["COAP_ADDR_LIST"] example: "192.168.10.1-192.168.10.50;192.168.20.2"
@@ -648,14 +729,17 @@ if __name__ == "__main__":
             address_list.extend(iprange(*list(map(str.strip, ip_range.split("-")))))
     config["COAP_ADDR_LIST"] = address_list
 
-    config["coap_bin"] = shutil.which("coap-client", path=os.environ.get("PATH", "") + ":/opt")
-    if not config["coap_bin"]:
-        sys.exit("[  setup  ] No 'coap-client' binary found. Exiting.")
+    if config["coap_enabled"]:
+        config["coap_bin"] = shutil.which("coap-client", path=os.environ.get("PATH", "") + ":/opt")
+        if not config["coap_bin"]:
+            sys.exit("[  setup  ] No 'coap-client' binary found. Exiting.")
 
-    for ip_addr in config["COAP_ADDR_LIST"]:
-        print(f"[  setup  ] pinging {ip_addr}")
-        if not ping(config["ping_bin"], str(ip_addr), attempts=3, wait=10):
-            sys.exit(f"[  setup  ] {ip_addr} is down")
+        for ip_addr in config["COAP_ADDR_LIST"]:
+            print(f"[  setup  ] pinging {ip_addr}")
+            if not ping(config["ping_bin"], str(ip_addr), attempts=3, wait=10):
+                sys.exit(f"[  setup  ] {ip_addr} is down")
+    else:
+        print("[  setup  ] COAP_ADDR_LIST empty: CoAP disabled, MQTT will read from the CSV")
 
     if config["PSK"]:
         print("[  setup  ] With pre-shared key")
